@@ -6,29 +6,22 @@ from logging import (
 )
 import inspect,traceback,os
 
-try:
-    import common.settings
-    STG = common.settings.STG
-    dirpath   = STG["log_dir_path"] if "log_dir_path" in STG else "./log/"
-    filename  = STG["log_file_name"] if "log_file_name" in STG else "app.log"
-    log_level = STG["log_level"] if "log_level" in STG else DEBUG
-    log_size  = STG["log_size"] if "log_size" in STG else 1024 * 1024
-    log_backup_count = STG["log_backup_count"] if "log_backup_count" in STG else 10
 
-except Exception as e:
-    print("ERROR：設定ファイルのインポートに失敗")
-    dirpath = "./log/"
-    filename = "app.log"
-    log_level = DEBUG
-    log_size = 1024 * 1024
-    log_backup_count = 10
+dirpath = "./log/"
+filename = "app.log"
+log_level = DEBUG
+log_size = 1024 * 1024
+log_backup_count = 10
 
+# デフォルトのログフォルダを作る
 if not os.path.exists(dirpath):
     os.makedirs(dirpath)
 
 # 生成ロガーのカウンター
 logid = 0
 def make_logger(filename,fmt='%(asctime)s : %(levelname)s - %(message)s'):
+    if not os.path.exists(dirpath):
+        os.makedirs(dirpath)
     global logid
     lg = getLogger(__name__ + str(logid))
     lg.setLevel(log_level)
@@ -128,9 +121,7 @@ def writer(separation=""):
 
 class OutputLog:
     """ loggerをラッピングしたログ出力クラス
-    ### シングルトンパターンで実装しているため、２つめのインスタンス生成は許可しない。
     """
-    _instance = None # インスタンス保持クラス変数
 
     def __init__(self,lgr):
         """ loggerをラッピングしたログ出力オブジェクト
@@ -148,52 +139,47 @@ class OutputLog:
         Args:
             lgr ロガーオブジェクト
         """
-
-        if OutputLog._instance != None:
-            raise Exception("OutputLog class is a singleton! Please use 'logger'.")
-
         self.lgr = lgr
-        OutputLog._instance = self
 
     @writer(" - ")
     def debug(self,message=""):
         """ DEBUGログ出力する
         """
-        lgr.debug("出力 : {}".format(message))
+        self.lgr.debug("出力 : {}".format(message))
 
     @writer(" - ")
     def info(self,message=""):
         """ INFOログ出力する
         """
-        lgr.info(" 出力 : {}".format(message))
+        self.lgr.info(" 出力 : {}".format(message))
 
     @writer(" - ")
     def error(self,message=""):
         """ ERRORログ出力する
         """
-        lgr.error("出力 : {}".format(message))
+        self.lgr.error("出力 : {}".format(message))
 
     @observer("",DEBUG)
     def debug_all(self,comment=""):
         """ 呼び出し元のローカル変数をdebugログにすべて書き出す関数
         """
-        lgr.debug("検証 : {}".format(comment))
+        self.lgr.debug("検証 : {}".format(comment))
         
     @observer("",INFO)
     def info_all(self,comment=""):
         """ 呼び出し元のローカル変数をinfoログにすべて書き出す関数
         """
-        lgr.info(" 情報 : {}".format(comment))
+        self.lgr.info(" 情報 : {}".format(comment))
 
     @observer("",ERROR)
     def error_all(self,comment=""):
         """ 呼び出し元のローカル変数をerrorログにすべて書き出す関数
         """
-        lgr.error("例外 : {}".format(comment))
+        self.lgr.error("例外 : {}".format(comment))
 
 logger = OutputLog(lgr)
 """ loggerをラッピングしたログ出力オブジェクト
-#### モジュールや関数名、実行時の行数の出力を自動で行う
+### モジュールや関数名、実行時の行数の出力を自動で行う
 ```
     from common.logger import logger
     logger.debug("TEST DEBUG")
@@ -203,16 +189,6 @@ logger = OutputLog(lgr)
     logger.debug_all("local values!")
     logger.info_all("local values!")
     logger.error_all("local values!")
-```
-"""
-
-shl = make_logger("scenario_history.log",'%(asctime)s : %(levelname)s : %(filename)s : line[%(lineno)d] - %(message)s')
-""" シナリオ履歴用ロガー
-```
-    from common.logger import shl
-    shl.debug("xxx")
-    shl.info("xxx")
-    shl.error("xxx")
 ```
 """
 
