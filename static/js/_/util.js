@@ -7877,135 +7877,135 @@ class FormManager extends DOM{
 }
 
 
-/**
- * Quillに依存
- */
-class Editor{
+// /**
+//  * Quillに依存
+//  */
+// class Editor{
 
-    static COLORS = [
-        '#000000',
-        '#e60000',
-        '#008a00',
-        '#0066cc',
-        '#ffff00',
-        //   'custom' // ← 自由色トリガー
-    ];
+//     static COLORS = [
+//         '#000000',
+//         '#e60000',
+//         '#008a00',
+//         '#0066cc',
+//         '#ffff00',
+//         //   'custom' // ← 自由色トリガー
+//     ];
 
-    static cnt = 0;
+//     static cnt = 0;
 
-    constructor(selector="body"){
-        this.colorPicker = null;
-        this.currentFormat = 'color';
-        this.savedRange = null;
-        const self = this;
-        this.id = Editor.cnt++;
-        this.dom = null;
-        let target = selector;
-        if(typeof(selector)!=="string"){
-            selector.id = `ql-editor${this.id}`;
-            target = `#${selector.id}`;
-            this.dom = selector;
-        }else{
-            this.dom = document.querySelector(selector);
-        }
+//     constructor(selector="body"){
+//         this.colorPicker = null;
+//         this.currentFormat = 'color';
+//         this.savedRange = null;
+//         const self = this;
+//         this.id = Editor.cnt++;
+//         this.dom = null;
+//         let target = selector;
+//         if(typeof(selector)!=="string"){
+//             selector.id = `ql-editor${this.id}`;
+//             target = `#${selector.id}`;
+//             this.dom = selector;
+//         }else{
+//             this.dom = document.querySelector(selector);
+//         }
 
-        this.toolbarOptions = [
-            ['bold', 'italic', 'underline'],
-            [{ color: [...Editor.COLORS] }, { background: [...Editor.COLORS] }],
-            ['customColor', 'customBg'], // ← 独自ボタン
-            [{ list: 'ordered' }, { list: 'bullet' }],
-            ['link', 'image'],
-            ['clean']
-        ];
-        const toolbarOptions = this.toolbarOptions;
-        this.quill = new Quill(target, {
-            theme: 'snow',
-            modules: {
-                toolbar: {
-                    container: toolbarOptions,
-                    handlers: {
+//         this.toolbarOptions = [
+//             ['bold', 'italic', 'underline'],
+//             [{ color: [...Editor.COLORS] }, { background: [...Editor.COLORS] }],
+//             ['customColor', 'customBg'], // ← 独自ボタン
+//             [{ list: 'ordered' }, { list: 'bullet' }],
+//             ['link', 'image'],
+//             ['clean']
+//         ];
+//         const toolbarOptions = this.toolbarOptions;
+//         this.quill = new Quill(target, {
+//             theme: 'snow',
+//             modules: {
+//                 toolbar: {
+//                     container: toolbarOptions,
+//                     handlers: {
                     
-                        customColor() {
-                            self.openColorPicker('color');
-                        },
-                        customBg() {
-                            self.openColorPicker('background');
-                        }
-                    }
-                }
-            }
-        });
+//                         customColor() {
+//                             self.openColorPicker('color');
+//                         },
+//                         customBg() {
+//                             self.openColorPicker('background');
+//                         }
+//                     }
+//                 }
+//             }
+//         });
 
-        document.querySelector(".ql-customColor").addEventListener("click",(e)=>{
-            const picker = this.getColorPicker();
-            picker.style.left = `${e.clientX}px`;
-            picker.style.top  = `${e.clientY}px`;
-            console.log(
-                picker.style.left,
-                picker.style.top
-            );
-        });
-        document.querySelector(".ql-customBg").addEventListener("click",(e)=>{
-            const picker = this.getColorPicker();
-            picker.style.left = `${e.clientX}px`;
-            picker.style.top  = `${e.clientY}px`;
-        });
-    }
+//         document.querySelector(".ql-customColor").addEventListener("click",(e)=>{
+//             const picker = this.getColorPicker();
+//             picker.style.left = `${e.clientX}px`;
+//             picker.style.top  = `${e.clientY}px`;
+//             console.log(
+//                 picker.style.left,
+//                 picker.style.top
+//             );
+//         });
+//         document.querySelector(".ql-customBg").addEventListener("click",(e)=>{
+//             const picker = this.getColorPicker();
+//             picker.style.left = `${e.clientX}px`;
+//             picker.style.top  = `${e.clientY}px`;
+//         });
+//     }
 
-    openColorPicker(format){
-        this.currentFormat = format;
-        const picker = this.getColorPicker();
-        // 毎回 input を発火させる
-        picker.value = '#000000';
-        this.savedRange = this.quill.getSelection();
-        requestAnimationFrame(() => {
-            picker.click();
-        });
-    }
+//     openColorPicker(format){
+//         this.currentFormat = format;
+//         const picker = this.getColorPicker();
+//         // 毎回 input を発火させる
+//         picker.value = '#000000';
+//         this.savedRange = this.quill.getSelection();
+//         requestAnimationFrame(() => {
+//             picker.click();
+//         });
+//     }
 
-    getColorPicker() {
-        if (this.colorPicker) return this.colorPicker;
+//     getColorPicker() {
+//         if (this.colorPicker) return this.colorPicker;
 
-        const colorPicker = document.createElement('input');
-        colorPicker.type = 'color';
+//         const colorPicker = document.createElement('input');
+//         colorPicker.type = 'color';
 
-        // 見えないが確実に動く配置
-        colorPicker.style.position = 'fixed';
-        colorPicker.style.top = '0px';
-        colorPicker.style.left = '0px';
-        colorPicker.style.width = '1px';
-        colorPicker.style.height = '1px';
-        colorPicker.style.border = 'none';
-        colorPicker.style.padding = '0';
-        colorPicker.style.background = 'transparent';
+//         // 見えないが確実に動く配置
+//         colorPicker.style.position = 'fixed';
+//         colorPicker.style.top = '0px';
+//         colorPicker.style.left = '0px';
+//         colorPicker.style.width = '1px';
+//         colorPicker.style.height = '1px';
+//         colorPicker.style.border = 'none';
+//         colorPicker.style.padding = '0';
+//         colorPicker.style.background = 'transparent';
 
-        document.body.appendChild(colorPicker);
+//         document.body.appendChild(colorPicker);
 
-        colorPicker.addEventListener('input', () => {
-            if (this.savedRange) {
-            this.quill.setSelection(this.savedRange);
-            }
-            this.quill.format(this.currentFormat, colorPicker.value);
-            colorPicker.blur();
-        });
-        this.colorPicker = colorPicker;
+//         colorPicker.addEventListener('input', () => {
+//             if (this.savedRange) {
+//             this.quill.setSelection(this.savedRange);
+//             }
+//             this.quill.format(this.currentFormat, colorPicker.value);
+//             colorPicker.blur();
+//         });
+//         this.colorPicker = colorPicker;
 
-        return this.colorPicker;
-    }
+//         return this.colorPicker;
+//     }
 
-    get innerHTML(){
-        return this.quill.getContents();
-    }
+//     get innerHTML(){
+//         return this.quill.getContents();
+//     }
 
-    set innerHTML(html){
-        this.quill.clipboard.dangerouslyPasteHTML(this.quill.getLength() - 1,html);
-    }
+//     set innerHTML(html){
+//         this.quill.clipboard.dangerouslyPasteHTML(this.quill.getLength() - 1,html);
+//     }
 
-    get text(){
-        return this.quill.getText();
-    }
+//     get text(){
+//         return this.quill.getText();
+//     }
 
-}
+// }
 
 // let f = new Filter();
 //     f.set_condition(
