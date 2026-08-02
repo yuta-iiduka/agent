@@ -1,0 +1,28 @@
+{% extends "_base.html" %}
+{% block css %}{% endblock %}
+{% block title %}サインアップ{% endblock %}
+
+{% block content %}
+    <div class="center">
+        <form action="{{url_for('auth.signup')}}" method="POST">
+            <input type="hidden"   name="csrf_token" value="{{csrf_token()}}" />
+            <input type="email"    name="email"      value="{{email}}"    placeholder="ユーザID">
+            <input type="password" name="password"   value="{{password}}" placeholder="パスワード">
+            <input type="submit" value="サインアップ">
+        </form>
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <div class="message">
+                {% for message in messages %}
+                    {{ message }}
+                {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+        <div>ログインは<a href="{{url_for('auth.login')}}" >こちら</a>から登録してください。</div>
+    </div>
+{% endblock %}
+
+{% block script %}
+
+{% endblock %}

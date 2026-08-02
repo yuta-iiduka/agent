@@ -1,0 +1,12 @@
+{
+    "app":{
+        "secretkey":"xxxxxxxx",
+        "host":"127.0.0.1",
+        "port":55555,
+        "async_mode":"gevent"
+    },
+    "db":{
+        "client":"sqlite:///client.db",
+        "server":"sqlite:///server.db"
+    }
+}
