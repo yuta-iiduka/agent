@@ -8,7 +8,7 @@ document.addEventListener("DOMContentLoaded",(e)=>{
     editor = new toastui.Editor({
         el: document.querySelector("#editor"),
         previewStyle: "vertical",
-        height: "500px",
+        height: "100%",
         initialValue: "Hello World!",
         initialEditType: "wysiwyg",
         theme: "dark",
@@ -19,7 +19,7 @@ document.addEventListener("DOMContentLoaded",(e)=>{
     viewer = toastui.Editor.factory({
         el: document.querySelector("#viewer"),
         viewer: true,
-        height: "500px",
+        height: "100%",
         initialValue: "Hello World!",
         initialEditType: "wysiwyg",
         theme: "dark",

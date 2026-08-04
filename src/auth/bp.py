@@ -18,7 +18,7 @@ def login():
                 if next is not None and next != "":
                     return redirect(next)
                 else:
-                    return redirect(url_for("home"))
+                    return redirect(url_for("home.home"))
             else:
                 flash("パスワードが違います。")
         else:
@@ -62,7 +62,7 @@ def signup():
 @log
 def logout():
     logout_user()
-    return redirect(url_for("login"))
+    return redirect(url_for("auth.login"))
 
 @socketio.event
 def connect():

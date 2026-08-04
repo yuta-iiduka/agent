@@ -1,13 +1,32 @@
-.head{
+html{
+    height: 100%;
+    overflow: hidden;
+}
+body{
+    height: 100%;
+    overflow: auto;
+    background-color: black;
+    color: white;
+}
 
+.head{
+    display: block;
+    height: 64px;
 }
 
 .body{
-
+    display: flex;
+    flex-direction: column;
+    height: calc(100% - 112px);
+    overflow: auto;
+    padding: 0px;
+    margin:  0px;
+    align-items: center;
 }
 
 .foot{
-
+    display: block;
+    height: 48px;
 }
 
 .hide{

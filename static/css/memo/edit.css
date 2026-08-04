@@ -1,0 +1,29 @@
+#form-head{
+    height:  32px;
+    width:   100%;
+    margin:  0px;
+    padding: 0px;
+}
+#form-body{
+    height:  calc(100% - 64px);
+    width:   100%;
+    margin:  0px;
+    padding: 0px;
+    overflow: auto;
+}
+
+#form-foot{
+    height:  32px;
+    width:   100%;
+    margin:  0px;
+    padding: 0px;
+}
+
+#editor{
+    overflow: auto;
+}
+
+#viewer{
+    overflow: auto;
+
+}
