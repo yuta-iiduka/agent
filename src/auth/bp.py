@@ -63,8 +63,3 @@ def signup():
 def logout():
     logout_user()
     return redirect(url_for("auth.login"))
-
-@socketio.event
-def connect():
-    print("connect")
-    join_room("room-{}".format(current_user.id))

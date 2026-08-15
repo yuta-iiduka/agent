@@ -9,8 +9,14 @@
 		<meta http-equiv="content-language" content="ja">
 		<meta name="robots" content="noindex, nofollow">
 		<meta name="csrf_token" value="{{ csrf_token() }}">
+		<input id="csrf_token" type="hidden" name="csrf_token" value="{{csrf_token()}}" />           
+		<meta name="endpoints"
+			{% for endpoint, url in endpoints.items() %}
+				data-{{endpoint}}="{{url}}"
+			{% endfor %}
+		/>
 
-		<title>NOTE【{% block title %}{% endblock %}】</title>
+		<title>METAPHEL:{% block title %}{% endblock %}</title>
 		
 		{% include "_css.html" %}
 		{% block css %}{% endblock %}
@@ -18,14 +24,22 @@
 		<link rel="shortcut icon"     type="image/png" href="{{url_for('static',filename='img/icon.png')}}" />
 		<link rel="apple-touch-icon"  type="image/png" href="{{url_for('static',filename='img/icon.png')}}" />
 		<link rel="icon"              type="image/png" href="{{url_for('static',filename='img/icon.png')}}" />
-
 	</head>
 	
-	<body>
+	<body hx-headers='{"X-CSRFToken": "{{ csrf_token() }}"}'>
 		<div class="head">{% include "_head.html" %}</div>
 		<div class="body">{% block content %}{% endblock %}</div>
 		<div class="foot">{% include "_foot.html" %}</div>
+		<div class="tool">{% block tool %}{% endblock %}</div>
+		<div class="util">{% include "_util.html" %}</div>
 		<div class="hide">{% block hidden %}{% endblock %}</div>
+		<div class="hide">
+			{% with messages = get_flashed_messages() %}
+                {% if messages %}
+                    <div class="flash">{% for message in messages %}{{ message }}{% endfor %}</div>
+                {% endif %}
+            {% endwith %}
+		</div>
 		{% include "_script.html" %}
 		{% block script %}{% endblock %}
 	</body>

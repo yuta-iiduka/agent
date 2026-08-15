@@ -1,0 +1,99 @@
+{% extends "_base.html" %}
+{% block css %}
+    <link rel="stylesheet" href="{{url_for('static',filename='css/_/tui-pagination.css')}}">
+    <link rel="stylesheet" href="{{url_for('static',filename='css/_/tui-grid.css')}}">
+{% endblock %}
+{% block title %}ROOM INDEX{% endblock %}
+
+{% block content %}
+    <!-- ハンバーガーボタン -->
+    <button id="sidebar-toggle"
+            class="button is-primary sidebar-toggle"
+            aria-label="メニューを開く">
+        <span class="icon"><img src="{{url_for('static',filename='img/icon/chat.png')}}" /></span>
+    </button>
+
+    <!-- オーバーレイ -->
+    <div id="sidebar-overlay" class="sidebar-overlay"></div>
+
+    <div class="app-layout">
+
+        <!-- サイドバー -->
+        <aside id="sidebar" class="sidebar box">
+            <div class="sidebar-header">
+                <strong>Menu</strong>
+
+                <button id="sidebar-close"
+                        class="delete"
+                        aria-label="メニューを閉じる">
+                </button>
+            </div>
+
+            <aside class="menu">
+                <p class="menu-label">
+                    TOOLS
+                </p>
+                <ul class="menu-list">
+                    <li>
+                        <a id="button-search" class="link is-info" data-url=""><img class="icon is-small" src="{{url_for('static',filename='img/icon/search.svg')}}" />予定検索</a>
+                    </li>
+                    <li>
+                        <a id="button-create" class="link is-info" data-url=""
+                            hx-get="{{url_for('user.index')}}"
+                            hx-swap="none"
+                        >
+                            <img class="icon is-small" src="{{url_for('static',filename='img/icon/plus.svg')}}"/>
+                            カレンダー作成
+                        </a>
+                    </li>
+                </ul>
+                <p class="menu-label">
+                    CHAT
+                </p>
+                <ul class="menu-list">
+                    {% for room in data %}
+                    <li>
+                        <a class="chat-link link is-primary" data-url="{{url_for('chat.room',room_id=room.id,frame='false')}}" data-name="{{room.name}}">{{room.name}}</a>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </aside>
+            <div class="sidebar-footer">
+                <strong>Settings</strong>
+                <ul class="menu-list">
+                    <li>
+                        <a class="link is-info" data-url=""><img class="icon is-small" src="{{url_for('static',filename='img/icon/gear.svg')}}" />カスタム設定</a>
+                    </li>
+                </ul>
+            </div>
+        </aside>
+
+        <!-- メインコンテンツ -->
+        <main class="main-content">
+            <div class="content-head">
+                <h1 class="title">
+                    Scheduler
+                </h1>
+
+                <p>
+                    スケジューラです。予定を管理します。
+                </p>
+                <div id="chat-tab" class="tabs is-small">
+                    <ul>
+                        <!-- <li class="is-active"><a>MyPage</a></li> -->
+                    </ul>
+                </div>
+            </div>
+            <div class="content-body">
+                <div id="chat-tab-content" class="chat-room"></div>
+            </div>
+        </main>
+    </div>
+
+
+{% endblock %}
+
+{% block script %}
+    <script src="{{url_for('static',filename='js/_/tui-pagination.js')}}"></script>
+    <script src="{{url_for('static',filename='js/_/tui-grid.js')}}"></script>
+{% endblock %}

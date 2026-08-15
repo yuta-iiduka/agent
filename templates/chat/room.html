@@ -1,0 +1,74 @@
+{% extends "_base.html" %}
+{% block css %}
+{% endblock %}
+{% block title %}ROOM{% endblock %}
+
+{% block content %}
+    <div class="columns w-100 h-100">
+        <div class="column h-100">
+            <div id="chat-head" class="chat-head">
+                {{room.name}}:{{room.id}}
+            </div>
+            <div id="chat-body" class="chat-body">
+
+                {% for d in data %}
+                <div class="chat-container" data-id="{{d.id}}" data-is_converted="false">
+                    <div class="chat-frame box w-100">
+                        <div class="chat-info">
+                            <div>
+                                <img class="icon" src="{{d.icon or url_for('static', filename='img/default_256x256.png')}}" />
+                                <span class="chat-user">{{d.user_name}}</span>
+                            </div>
+                            <div>
+                                <img class="icon pointer trs-btn" src="{{url_for('static', filename='img/icon/trash.svg')}}" 
+                                    hx-delete="{{url_for('chat.delete',room_id=room.id)}}"
+                                    hx-vals='{"id":"{{d.id}}"}'
+                                    hx-swap="none"
+                                />
+                                <img class="icon pointer edt-btn" src="{{url_for('static', filename='img/icon/edit.svg')}}" />
+                            </div>
+                        </div>
+                        <p class="chat-text">{{d.text}}</p>
+                    </div>
+                </div>
+                {% endfor %}
+
+            </div>
+            <div id="chat-foot" class="chat-foot">
+                <div class="chat-form box is-primary">
+                    <textarea id="chat-textarea" name="text" class="w-100" placeholder="テキストを入力してください。"
+                        data-room_id="{{room.id}}"
+                    ></textarea>
+                    <input id="room-id" type="hidden" name="room_id" value="{{room.id}}" />
+                    <input id="chat-id" type="hidden" name="id" value="" />
+                    <div id="buttons" class="buttons">
+                        <div class="buttons-left">
+                            <!-- <button class="button"><img src="{{url_for('static',filename='img/icon/file.svg')}}" /></button> -->
+                        </div>
+                        <div class="buttons-right">
+                            <button id="button-send" class="button" 
+                                hx-post="{{url_for('chat.post',room_id=room.id)}}"
+                                hx-include="#csrf_token, #chat-textarea, #room-id, #chat-id"
+                                hx-target="#chat-body"
+                                hx-swap="none"
+                                hx-on:htmx:after-request="console.log('hx-on:htmx:after-request clicked.')"
+                            ><img src="{{url_for('static',filename='img/icon/send.svg')}}" /></button>
+                            <button id="button-cancel" class="button hide">キャンセル</button>
+                            <button id="button-edit" class="button hide" 
+                                hx-put="{{url_for('chat.put',room_id=room.id)}}"
+                                hx-include="#csrf_token, #chat-textarea, #room-id, #chat-id"
+                                hx-target="#chat-body"
+                                hx-swap="none"
+                                hx-on:htmx:after-request="console.log('hx-on:htmx:after-request clicked.')"
+                            ><img src="{{url_for('static',filename='img/icon/send.svg')}}" /></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+{% endblock %}
+
+{% block script %}
+{% endblock %}

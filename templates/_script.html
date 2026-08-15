@@ -1,9 +1,11 @@
 <script src="{{url_for('static',filename='js/_/purify.min.js')}}"></script>
 <script src="{{url_for('static',filename='js/_/marked.min.js')}}"></script>
-<script src="{{url_for('static',filename='js/_/util.js')}}"></script>
-<script src="{{url_for('static',filename='js/_/modal.js')}}"></script>
+<script src="{{url_for('static',filename='js/_/turndown.js')}}"></script>
+<script src="{{url_for('static',filename='js/_/turndown-plugin-gfm.js')}}"></script>
+<script src="{{url_for('static',filename='js/_/bulma.modal.js')}}"></script>
 <script src="{{url_for('static',filename='js/_/socket.io.js')}}"></script>
-<script src="{{url_for('static',filename='js/_/table.js')}}"></script>
-<script src="{{url_for('static',filename='js/_/request.js')}}"></script>
+<!-- <script src="{{url_for('static',filename='js/_/request.js')}}"></script> -->
+<script src="{{url_for('static',filename='js/_/htmx.js')}}"></script>
+<script src="{{url_for('static',filename='js/_/htmx.json-enc.js')}}"></script>
 <script src="{{url_for('static',filename='js/_base.js')}}"></script>
 <script src="{{url_for('static',filename='js/'+'/'.join(request.endpoint.split('.'))+'.js')}}"></script>

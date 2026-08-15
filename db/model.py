@@ -1,4 +1,5 @@
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import or_, and_, func
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -29,6 +30,11 @@ class BaseColumn(object):
     created_at = db.Column(db.DateTime, default=datetime.datetime.now)
     updated_at = db.Column(db.DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now)
     deleted_at = db.Column(db.DateTime, default=None)
+
+    @classmethod
+    def max_id(cls):
+        id = db.session.query(func.max(cls.id)).scalar()
+        return id if id is not None else 0
 
     @classmethod
     def to_dict_list(cls, model_list):
@@ -116,10 +122,12 @@ class User(db.Model,UserMixin,BaseColumn):
     role      = db.Column(db.Integer, default=0)
     group     = db.Column(db.Integer, default=0)
     auth      = db.Column(db.Integer, default=0)
+    icon      = db.Column(db.Text,    default="")
 
     @property
     def password(self):
-        raise AttributeError("読み取り不可")
+        # raise AttributeError("読み取り不可")
+        return "********"
     
     @password.setter
     def password(self,password):
@@ -135,14 +143,81 @@ class User(db.Model,UserMixin,BaseColumn):
         return User.query.filter_by(name=self.email).first() is not None
 
 
+class Room(db.Model,UserMixin,BaseColumn):
+    """ roomテーブル
+    status:
+        0 - my chat
+        1 - group chat
+    """
+
+    __tablename__ = "room"
+    __bind_key__  = "server"
+    name      = db.Column(db.String(64), nullable=True)
+    password  = db.Column(db.String(64), nullable=True, default=None)
+    group     = db.Column(db.Integer, default=0)
+    icon      = db.Column(db.Text,    default="")
+    owner_id  = db.Column(db.Integer, nullable=False)
+
+    @classmethod
+    def user_chat(cls,user_id):
+        return Room.query.filter_by(owner_id=user_id,status=0).first()
+
+    @classmethod
+    def chat(cls,room_id):
+        return db.session.query(
+            RoomChat.id,RoomChat.room_id,RoomChat.user_id,RoomChat.text,
+            RoomChat.created_at,RoomChat.updated_at,
+            User.name.label("user_name"),User.email,User.auth,User.group,User.icon,
+        ).join(
+            Room,
+            Room.id == RoomChat.room_id
+        ).join(
+            User,
+            RoomChat.user_id == User.id
+        ).filter(
+            RoomChat.room_id == room_id
+        ).order_by(RoomChat.id).all()
+
+    @classmethod
+    def index(cls,user_id):
+        return Room.query.join(
+            RelationRoomToUser,
+            Room.id == RelationRoomToUser.room_id
+        ).filter(
+            or_(
+                RelationRoomToUser.user_id == user_id,
+                Room.owner_id == user_id,
+                Room.status != 0,
+            )
+        ).order_by(Room.updated_at).all()
+
+class RelationRoomToUser(db.Model):
+    """ 
+    """
+    __tablename__ = "relation_room_to_user"
+    __bind_key__  = "server"
+    user_id   = db.Column(db.Integer, primary_key=True)
+    room_id   = db.Column(db.Integer, primary_key=True)
+
+class RoomChat(db.Model,BaseColumn):
+    """ room_chatテーブル
+    """
+    __tablename__ = "room_chat"
+    __bind_key__  = "server"
+    id        = db.Column(db.BigInteger,  primary_key=True)
+    text      = db.Column(db.Text, nullable=True)
+    user_id   = db.Column(db.Integer, nullable=False)
+    room_id   = db.Column(db.Integer, nullable=False)
+
 class Memo(db.Model,UserMixin,BaseColumn):
-    """ Memoテーブル
+    """ memoテーブル
     """
     __tablename__ = "memo"
     text       = db.Column(db.Text, nullable=False, default="")
+    name       = db.Column(db.String(128), nullable=False, default="")
     creator_id = db.Column(db.Integer, nullable=False)
     updater_id = db.Column(db.Integer, nullable=False)
-
+    
 
 if __name__ == "__main__":
     pass

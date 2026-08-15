@@ -3,23 +3,32 @@
 {% block title %}サインアップ{% endblock %}
 
 {% block content %}
-    <div class="center">
-        <form action="{{url_for('auth.signup')}}" method="POST">
-            <input type="hidden"   name="csrf_token" value="{{csrf_token()}}" />
-            <input type="email"    name="email"      value="{{email}}"    placeholder="ユーザID">
-            <input type="password" name="password"   value="{{password}}" placeholder="パスワード">
-            <input type="submit" value="サインアップ">
-        </form>
-        {% with messages = get_flashed_messages() %}
-            {% if messages %}
-                <div class="message">
-                {% for message in messages %}
-                    {{ message }}
-                {% endfor %}
-                </div>
-            {% endif %}
-        {% endwith %}
-        <div>ログインは<a href="{{url_for('auth.login')}}" >こちら</a>から登録してください。</div>
+    <div class="columns">
+        <div class="column">
+            <div class="title is-primary">SIGNUP</div>
+        </div>
+    </div>
+    <div class="section columns">
+        <div class="column">
+            <form action="{{url_for('auth.signup')}}" method="POST">
+                <input class="input field" type="hidden"   name="csrf_token" value="{{csrf_token()}}" />
+                <input class="input field" type="email"    name="email"      value="{{email}}"    placeholder="ユーザID">
+                <input class="input field" type="password" name="password"   value="{{password}}" placeholder="パスワード">
+                <input class="button is-primary is-small" type="submit" value="SIGNUP">
+            </form>
+            {% with messages = get_flashed_messages() %}
+                {% if messages %}
+                    <div class="message">
+                    {% for message in messages %}
+                        {{ message }}
+                    {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+        </div>
+    </div>
+    <div class="columns">
+        <div>SIGNINは<a href="{{url_for('auth.login')}}" >こちら</a>から登録してください。</div>
     </div>
 {% endblock %}
 

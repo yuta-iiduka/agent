@@ -1,5 +1,5 @@
 #form-head{
-    height:  32px;
+    height:  64px;
     width:   100%;
     margin:  0px;
     padding: 0px;
@@ -13,17 +13,32 @@
 }
 
 #form-foot{
-    height:  32px;
+    height:  0px;
     width:   100%;
     margin:  0px;
     padding: 0px;
 }
 
+#editor-buttons{
+    display: flex;
+    justify-content: flex-end;
+    align-items: flex-end;
+}
 #editor{
     overflow: auto;
 }
 
+#viewer-buttons{
+    display: flex;
+    justify-content: flex-end;
+    align-items: flex-end;
+}
 #viewer{
     overflow: auto;
 
+}
+
+#main{
+    height: 100%;
+    width:  100%;
 }

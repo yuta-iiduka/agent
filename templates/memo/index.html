@@ -1,0 +1,46 @@
+{% extends "_base.html" %}
+{% block css %}
+    <link rel="stylesheet" href="{{url_for('static',filename='css/_/tui-pagination.css')}}">
+    <link rel="stylesheet" href="{{url_for('static',filename='css/_/tui-grid.css')}}">
+
+{% endblock %}
+{% block title %}MEMO{% endblock %}
+
+{% block content %}
+    
+    <div class="columns w-100">
+        <div class="column">
+            <input type="text" name="keywords" class="input is-small w-50" placeholder="検索ワード" value="{{keywords or ''}}"/>
+            <button id="button-search" class="button is-small">検索</button>
+        </div>
+    </div>
+    <div id="frame-body" class="columns w-100">
+        <div id="grid-frame" class="column">
+            <div id="grid"></div>
+            <div id="pagination"></div>
+        </div>
+    </div>
+    <div id="frame-foot" class="columns w-100">
+        <div class="column">
+            <button id="button-create" class="button is-small is-primary">作成</button>
+            <button id="button-edit"   class="button is-small is-info"   >編集</button>
+            <button id="button-share"  class="button is-small is-success">共有</button>
+            <button id="button-delete" class="button is-small is-danger" >削除</button>
+        </div>
+    </div>
+{% endblock %}
+
+{% block hidden %}
+        {% for d in data %}
+        <div class="data"
+            {% for k,v in d.items() %}
+                data-{{k}}="{{v}}"
+            {% endfor %}
+        ></div>
+        {% endfor %}
+{% endblock %}
+
+{% block script %}
+    <script src="{{url_for('static',filename='js/_/tui-pagination.js')}}"></script>
+    <script src="{{url_for('static',filename='js/_/tui-grid.js')}}"></script>
+{% endblock %}

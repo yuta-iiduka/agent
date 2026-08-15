@@ -1,0 +1,24 @@
+#frame-head{
+    height: 64px;
+    margin:0px;
+    padding:0px;
+}
+
+#frame-body{
+    height: calc(100% - 128px);
+    margin:0px;
+    padding:0px;
+}
+
+#frame-foot{
+    height: 64px;
+    margin:0px;
+    padding:0px;
+}
+
+
+#grid-frame{
+    height: 100%;
+    width: 100%;
+    overflow: auto;
+}

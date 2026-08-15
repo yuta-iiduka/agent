@@ -32,3 +32,14 @@ pip install redis,celery
 https://ui.toast.com/
 
 ```
+
+# TODO
+- -RoomChat
+- Room削除, Room更新(名前、ユーザ追加、削除), Room参加者の確認
+- Chat更新通知
+- -Memo
+- Memoの一覧検索ロジック
+- -Scheduler
+- -DataScience
+- -ImageEditor
+- -AI Agent

@@ -3,7 +3,8 @@
         "secretkey":"xxxxxxxx",
         "host":"127.0.0.1",
         "port":55555,
-        "async_mode":"gevent"
+        "async_mode":"gevent",
+        "max_content_length": 10485760
     },
     "db":{
         "client":"sqlite:///client.db",

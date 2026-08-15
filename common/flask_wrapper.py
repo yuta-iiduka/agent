@@ -69,7 +69,7 @@ class SingletonFlask:
     task_index_ws = 0
     task_index_broker = 1
     task_index_backend = 2
-    timeout = 1
+    timeout = 10
     result_expires=3600
 
     @property
@@ -117,6 +117,7 @@ class SingletonFlask:
                 )
                 if self.ping_redis():
                     option["message_queue"] = f"{self.redis_url}{self.task_index_ws}"
+                    pass
                 else:
                     print("Redisサーバへのpingが失敗しました。設定やサービスが起動していることを確認してください。")
                     # モジュールなどの準備ができていてもping()が有効でない場合は、フラグをFlaseに戻して、無効化する。

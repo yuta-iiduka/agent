@@ -1,0 +1,50 @@
+{% extends "_base.html" %}
+{% block css %}
+{% endblock %}
+{% block title %}USER{% endblock %}
+
+{% block content %}
+    <div id="frame-head" class="columns">
+        <div class="column">
+            ユーザ情報編集
+        </div>
+    </div>
+    <div id="frame-main" class="container w-50">
+        <div class="columns">
+            <div class="column">
+                <article class="message">
+                    <div class="message-header">ユーザ情報</div>
+                    <div class="message-body">
+                        <form class="columns" action="{{url_for('user.edit')}}" method="POST" enctype="multipart/form-data">
+                            <div class="column">
+                                <div class="field">
+                                    <label class="label">NAME</label>
+                                    <input type="text"  name="name"  value="{{current_user.name}}"  class="input" />
+                                </div>
+                                <div class="field">
+                                    <label class="label">EMAIL</label>
+                                    <input type="email" name="email" value="{{current_user.email}}" class="input" />
+                                </div>
+                                <div class="field">
+                                    <label class="label">ICON</label>
+                                    <div class="box icon-view">
+                                        <img id="icon-image" class="image" src="{{current_user.icon or url_for('static',filename='img/default_256x256.png')}}" />
+                                        <input id="icon-data" type="file" name="icon" style="display:none;" />
+                                    </div>
+                                </div>
+                                <div class="field">
+                                    <input type="hidden" name="csrf_token" value="{{csrf_token()}}" />
+                                    <input type="submit" value="送信" class="button is-primary is-small" />
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </div>
+
+{% endblock %}
+
+{% block script %}
+{% endblock %}

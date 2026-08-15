@@ -1,26 +1,35 @@
 {% extends "_base.html" %}
 {% block css %}{% endblock %}
-{% block title %}ログイン{% endblock %}
+{% block title %}サインイン{% endblock %}
 
 {% block content %}
-    <div class="center">
-        <form action="{{url_for('auth.login')}}" method="POST">
-            <input type="hidden"   name="next" value="{% if next is not none %}{{next}}{% endif %}" />
-            <input type="hidden"   name="csrf_token" value="{{csrf_token()}}" />
-            <input type="email"    name="email"    value="{{email}}"  placeholder="ユーザID">
-            <input type="password" name="password" value="{{password}}" placeholder="パスワード">
-            <input type="submit" value="ログイン">
-        </form>
-        {% with messages = get_flashed_messages() %}
-            {% if messages %}
-                <div class="message">
-                {% for message in messages %}
-                    {{ message }}
-                {% endfor %}
-                </div>
-            {% endif %}
-        {% endwith %}
-        <div>サインアップがまだの方は<a href="{{url_for('auth.signup')}}" >こちら</a>から登録してください。</div>
+    <div class="columns">
+        <div class="column">
+            <div class="title is-primary">SIGNIN</div>
+        </div>
+    </div>
+    <div class="section columns">
+        <div class="column">
+            <form action="{{url_for('auth.login')}}" method="POST">
+                <input class="input field" type="hidden"   name="next" value="{% if next is not none %}{{next}}{% endif %}" />
+                <input class="input field" type="hidden"   name="csrf_token" value="{{csrf_token()}}" />
+                <input class="input field" type="email"    name="email"    value="{{email}}"  placeholder="ユーザID">
+                <input class="input field" type="password" name="password" value="{{password}}" placeholder="パスワード">
+                <input class="button is-primary is-small" type="submit" value="SIGNIN">
+            </form>
+            {% with messages = get_flashed_messages() %}
+                {% if messages %}
+                    <div class="message">
+                    {% for message in messages %}
+                        {{ message }}
+                    {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+        </div>
+    </div>
+    <div class="columns">
+            <div>SIGNUPがまだの方は<a href="{{url_for('auth.signup')}}" >こちら</a>から登録してください。</div>
     </div>
 {% endblock %}
 

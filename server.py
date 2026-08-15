@@ -51,7 +51,16 @@ def load_user(user_id):
 
 @app.context_processor
 def inject_const():
-    return {"settings":settings,"constant":constant,"messages":messages}
+    return {"settings":settings,"constant":constant,"messages":messages, "endpoints":endpoints()}
+
+@socketio.event
+def connect():
+    print(current_user.name, "connect websocket.")
+    room = f"user-{current_user.id}"
+    join_room(room)
+    print("join_room",room)
+    # socketio.emit("connect", {"message":f"connect:{current_user.id}:{current_user.email}"}, to=room)
+    socketio.emit("message", {"message":f"connect:{current_user.id}:{current_user.email}"}, to=room)
 
 def create_app():
     global socketio, app, aps
@@ -77,7 +86,16 @@ def create_app():
     aps.init_app(app)
     aps.start()
 
+    print(endpoints())
+
     return app
+
+def endpoints():
+    endpoint_dict = {}
+    for rule in app.url_map.iter_rules():
+        endpoint_dict[rule.endpoint] = rule.rule
+
+    return endpoint_dict
 
 def main():
     # PIDの書き出し

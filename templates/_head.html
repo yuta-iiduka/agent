@@ -1,3 +1,41 @@
-{% if current_user.is_authenticated == true %}
-    {{ current_user.id }}：{{ current_user.name }}：{{ current_user.email }}
-{% endif %}
+
+<nav class="navbar is-primary">
+    <div class="navbar-brand">
+        <a href="{{url_for('home.home')}}" class="navbar-item logo">
+            <img src="{{url_for('static',filename='img/icon.png')}}" />
+            METAPHEL
+        </a>
+        <div class="container is-flex is-align-items-center">
+            <a role="button"
+                class="navbar-burger"
+                aria-label="menu"
+                aria-expanded="false"
+                data-target="navbarMenu"
+                >
+                <span aria-hidden="true"></span>
+                <span aria-hidden="true"></span>
+                <span aria-hidden="true"></span>
+
+            </a>
+            
+            <div id="navbarMenu" class="navbar-menu">
+                <div class="navbar-start">
+                    <a class="navbar-item" href="{{url_for('home.home')}}">HOME</a>
+                    <a class="navbar-item" href="{{url_for('home.help')}}">HELP</a>
+                </div>
+                <div class="navbar-end">
+                        {% if current_user.is_authenticated == true %}
+                            <a class="navbar-item" href="{{url_for('auth.logout')}}">SIGNOUT</a>
+                            <a class="navbar-item" href="{{url_for('user.edit')}}">{{ current_user.id }}：{{ current_user.email }}</a>
+                            <a class="navbar-item" href="{{url_for('user.edit')}}"><img class="image icon" src="{{ current_user.icon or url_for('static',filename='img/default_256x256.png')}}" ><span style="margin-left:10px;">{{ current_user.name }}</span></a>
+                            
+                        {% else %}
+                            <a class="navbar-item" href="{{url_for('auth.login')}}" >SIGNIN</a>
+                            <a class="navbar-item" href="{{url_for('auth.signup')}}">SIGNUP</a>
+
+                        {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</nav>

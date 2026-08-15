@@ -1,0 +1,45 @@
+{% extends "_base.html" %}
+{% block css %}
+    <link rel="stylesheet" href="{{url_for('static',filename='css/_/toastui-editor.min.css')}}">
+    <link rel="stylesheet" href="{{url_for('static',filename='css/_/toastui-editor-dark.min.css')}}">
+{% endblock %}
+{% block title %}MEMO{% endblock %}
+
+{% block content %}
+    <div id="main" class="section">
+        <div id="form-head" class="columns">
+            <div id="editor-buttons" class="column is-half">
+                <input id="title" class="input" type="text" value="{{data.name}}" placeholder="タイトル" />
+                <button id="save-button" type="button" class="button is-primary" >保存</button>
+            </div>
+            <div id="viewer-buttons" class="column is-half">
+
+            </div>
+        </div>
+        <div id="form-body" class="columns">
+
+            <div id="editor" class="column is-half">
+                <!-- Editor -->
+            </div>
+            <div id="viewer" class="column is-half">
+                <!-- Viewer -->
+            </div>
+        </div>
+        <div id="form-foot" class="columns">
+
+        </div>
+    </div>
+{% endblock %}
+
+{% block hidden %}
+    <form id="form" action="{{url_for('memo.save',id=-1)}}" method="POST">
+        <input type="hidden" name="csrf_token" value="{{csrf_token()}}" />
+        <input type="text" name="name" value="{{data.name}}" />
+        <textarea name="text">{{data.text}}</textarea>
+        <input type="submit" value="送信" />
+    </form>
+{% endblock %}
+
+{% block script %}
+    <script src="{{url_for('static',filename='js/_/toastui-editor-all.min.js')}}"></script>
+{% endblock %}

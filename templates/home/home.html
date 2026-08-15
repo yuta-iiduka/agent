@@ -1,15 +1,137 @@
 {% extends "_base.html" %}
 {% block css %}
-    <link rel="stylesheet" href="{{url_for('static',filename='css/home/home.css')}}"/>
 
 {% endblock %}
 {% block title %}HOME{% endblock %}
 
 {% block content %}
-    <div class="center">
+
+    <div class="card-grid">
+
+        <div class="card">
+            <div class="card-image">
+                <figure class="image is-4by3">
+                    <img src="{{url_for('static',filename='img/func00.png')}}">
+                </figure>
+            </div>
+
+            <div class="card-content">
+                <p class="title is-5">AI AGENT</p>
+                <p>
+                    AIエージェント機能です。タスクを遂行させます。
+                </p>
+            </div>
+
+            <footer class="card-footer">
+                <a class="card-footer-item">詳細</a>
+                <a class="card-footer-item">移動</a>
+            </footer>
+        </div>
+
+        <div class="card">
+            <div class="card-image">
+                <figure class="image is-4by3">
+                    <img src="{{url_for('static',filename='img/func01.png')}}">
+                </figure>
+            </div>
+
+            <div class="card-content">
+                <p class="title is-5">MEMO</p>
+                <p>
+                    メモ機能です。あなたのTODOやKNOW-HOWを管理します。
+                </p>
+            </div>
+
+            <footer class="card-footer">
+                <a class="card-footer-item">詳細</a>
+                <a class="card-footer-item" href="{{url_for('memo.index')}}">移動</a>
+            </footer>
+        </div>
+
+        <div class="card">
+            <div class="card-image">
+                <figure class="image is-4by3">
+                    <img src="{{url_for('static',filename='img/func02.png')}}">
+                </figure>
+            </div>
+
+            <div class="card-content">
+                <p class="title is-5">SCHEDULING</p>
+                <p>
+                    スケジューリング機能です。あなたの予定を管理します。
+                </p>
+            </div>
+
+            <footer class="card-footer">
+                <a class="card-footer-item">詳細</a>
+                <a class="card-footer-item" href="{{url_for('scheduler.index')}}">移動</a>
+            </footer>
+        </div>
+
+        <div class="card">
+            <div class="card-image">
+                <figure class="image is-4by3">
+                    <img src="{{url_for('static',filename='img/func03.png')}}">
+                </figure>
+            </div>
+
+            <div class="card-content">
+                <p class="title is-5">CHAT</p>
+                <p>
+                    チャット機能です。情報の共有を管理します。
+                </p>
+            </div>
+
+            <footer class="card-footer">
+                <a class="card-footer-item">詳細</a>
+                <a class="card-footer-item" href="{{url_for('chat.index')}}">移動</a>
+            </footer>
+        </div>
+
+        <div class="card">
+            <div class="card-image">
+                <figure class="image is-4by3">
+                    <img src="{{url_for('static',filename='img/func04.png')}}">
+                </figure>
+            </div>
+
+            <div class="card-content">
+                <p class="title is-5">IMAGE EDITOR</p>
+                <p>
+                    画像編集機能です。画像の加工やテキスト入力が可能です。
+                </p>
+            </div>
+
+            <footer class="card-footer">
+                <a class="card-footer-item">詳細</a>
+                <a class="card-footer-item">移動</a>
+            </footer>
+        </div>
+
+        <div class="card">
+            <div class="card-image">
+                <figure class="image is-4by3">
+                    <img src="{{url_for('static',filename='img/func05.png')}}">
+                </figure>
+            </div>
+
+            <div class="card-content">
+                <p class="title is-5">DATA SCIENCE</p>
+                <p>
+                    データ可視化機能です。データ解析に役立ちます。
+                </p>
+            </div>
+
+            <footer class="card-footer">
+                <a class="card-footer-item">詳細</a>
+                <a class="card-footer-item">移動</a>
+            </footer>
+        </div>
+
     </div>
+    
+
 {% endblock %}
 
 {% block script %}
-    <script src="{{url_for('static',filename='js/home/home.js')}}"></script>
 {% endblock %}

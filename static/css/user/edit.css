@@ -1,0 +1,20 @@
+#frame-head{
+    width: 100%;
+}
+
+#frame-body{
+    width: 100%;
+}
+
+#frame-foot{
+    width: 100%;
+}
+
+#icon-image{
+    cursor: pointer;
+}
+
+.icon-view{
+    display: flex !important;
+    justify-content: center;
+}

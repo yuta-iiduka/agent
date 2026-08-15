@@ -1011,7 +1011,7 @@ class ImageData(BinaryData):
         :return: 画像データ
         :rtype: Any
         """
-        self.controller.data_url_to_image(data_url)
+        return self.controller.data_url_to_image(data_url)
     
     def save(self,save_path:str):
         if self.image:

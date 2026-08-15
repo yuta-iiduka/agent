@@ -1,5 +1,4 @@
 """ 通信モジュール
-
 ## 高負荷の場合OSの設定が必須
 大量台数との同時接続は必ずインフラの設定を変える。
 ## ①設定値を確認
@@ -21,7 +20,7 @@ from common.communication import *
 async def send():
     udp = UDPClient("::1",50300)
     udp.run()
-    udp.enqueue({"type":"test","message":"This is TEST."},("::1",50300))
+    udp.enqueue({"callback":"test","message":"This is TEST."},("::1",50300))
     i = 0
     while True and i < 10:
         await asyncio.sleep(1)
@@ -32,8 +31,30 @@ if __name__ == "__main__":
     t = threading.Thread(target=asyncio.run,args=(send(),))
     t.start()
 ```
+
+```
+    UDPG系統のクラスを使う場合を実行しておく。
+    from gevent import monkey
+    monkey.patch_all()
+```
 """
 import asyncio, json, struct, uuid, socket, base64, time, threading, inspect, copy
+
+is_enable_gevent = False
+try:
+    import gevent
+    from gevent import  queue, lock, socket
+    is_enable_gevent = True
+except Exception as e:
+    is_enable_gevent = False
+
+
+is_enable_netifaces = False
+try:
+    import netifaces
+    is_enable_netifaces = True
+except Exception as e:
+    is_enable_netifaces = False
 
 INTERVAL_TIME = 0.001
 INTERVAL_NONE = 0
@@ -46,7 +67,8 @@ DUAL_STUCK_DEST = "::1"
 LOCAL_HOST = "127.0.0.1"
 FLOWINFO = 0
 SCOPEID = 0
-KEEP_TIME = 120
+KEEP_TIME = 3600
+RECEIVE_SIZE = 65536
 
 
 class AddressResolver:
@@ -93,7 +115,6 @@ class Packet:
         size = struct.unpack(HEADER_FORMAT, header)[0]
         body = await reader.readexactly(size)
         return json.loads(body.decode())
-    
 
     @staticmethod
     def split(data: bytes):
@@ -147,11 +168,12 @@ class PacketAssembler:
     パケット再構築クラス
     分割されたパケットを結合して、元のデータへ復元するクラス
     """
-    def __init__(self):
+    def __init__(self,sleeper=None):
         self.buffers = {}
         self.timer = {}
         self.timeout = TIMEOUT_TIME
         self.stop = None
+        self.sleeper = sleeper if sleeper else time
         self.cleaner = None
         self.start_cleaner()
 
@@ -179,7 +201,7 @@ class PacketAssembler:
     
     def loss(self,pid):
         target = self.buffers[pid]  # {chunks{index,data},total,filename}
-        chunks = target["chunks"] # {index:data}
+        chunks = target["chunks"]   # {index:data}
         exist_id = set([index for index, data in chunks.items()])
         total_id = set([index for index in range(target["total"])])
         diff = total_id - exist_id
@@ -192,7 +214,7 @@ class PacketAssembler:
 
     def timeout_check(self):
         while not self.stop.is_set():
-            time.sleep(1)
+            self.sleeper.sleep(1)
             now = time.time()
             targets = {**self.timer}
             for pid, last_time in targets.items():
@@ -218,9 +240,10 @@ class CommunicationTask:
     """ 通信タスククラス
     通信データが送信し、受信まで完了していることを管理する。
     """
-    def __init__(self):
+    def __init__(self, sleeper=None):
         self.task = {}
         self.keep_time = KEEP_TIME # INT
+        self.sleeper = sleeper if sleeper else time
 
     def append(self):
         _uuid = str(uuid.uuid4())
@@ -270,7 +293,7 @@ class CommunicationTask:
     
     def timeout(self):
         while True:
-            time.sleep(1)
+            self.sleeper.sleep(1)
             now = time.time()
             for uid, st in self.task.items():
                 # （現在時刻）が（最終更新日時＋タイムアウト猶予時間）をオーバーした場合はパケットのバッファーを削除
@@ -293,7 +316,10 @@ class BaseConnection:
         2.上記の５つのオブジェクトを直接修正や編集することはない。
     """
 
-    def __init__(self):
+    def __init__(self,host,port):
+        self.host = host
+        self.port = port
+        self.logger = None
         self._receive_callback = None      # パケット全てに対して発火するコールバック関数登録用の変数
         self._closer = None                # 通信の停止を担当するオブジェクト
         self.assembler = PacketAssembler() # 分割されたパケットを復元するオブジェクト
@@ -310,6 +336,12 @@ class BaseConnection:
         self.closing = False
         self.saving = False
         self.status = "OPENING" # OPENING READY RECONNECTING CLOSED
+        self.fileno = None
+        self.family = self.get_address_family(self.host)
+
+    def debug(self,*args,**kwargs):
+        if self.logger:
+            self.logger.debug(*args,**kwargs)
 
     @property
     def name(self):
@@ -376,6 +408,44 @@ class BaseConnection:
 
         return remote_addr
 
+    def find_if_by_ip(self, ip:str):
+        """
+        ip (str) : 検索したい IP アドレス
+        return: IP が割り当てられたインタフェース名, もしくは None
+        """
+            
+        result = None
+
+        if is_enable_netifaces and ip != "::1":
+            for iface in netifaces.interfaces():          # すべてのインタフェースを列挙
+                addrs = netifaces.ifaddresses(iface)      # そのインタフェースのアドレス一覧
+                # IPv4 と IPv6 両方をチェック
+                print(addrs)
+                for family in (netifaces.AF_INET, netifaces.AF_INET6):
+                    if family in addrs:
+                        for addrinfo in addrs[family]:
+                            print(addrinfo)
+                            if ip in addrinfo.get('addr'):
+                                result = iface
+                                break
+        return result
+
+    def find_scopeid(self, ip:str):
+        result = SCOPEID
+        ifname = self.find_if_by_ip(ip)
+        if ifname:
+            print("ifname:",ifname)
+            result = socket.if_nametoindex(ifname)
+        return result
+            
+    def reuse(self,fileno):
+        """
+        create_datagram_endpoint(sock=sock,reuse_port=False)で指定することで使いまわせる
+        """
+        print("fileno:",fileno)
+        sock = socket.fromfd(fd=fileno, family=self.family,type=socket.SOCK_DGRAM)
+        return sock
+
     def receive(self, callback):
         """
         ### Outlines
@@ -405,7 +475,7 @@ class BaseConnection:
             func: 引数のコールバック関数
         ### Example
         ```
-            # data={"type":"hoge","message":"HELLO WORLD!!"} に対して発火するコールバック関数の例
+            # data={"callback":"hoge","message":"HELLO WORLD!!"} に対して発火するコールバック関数の例
             # 受信時の処理（コールバック）
             @server.callback
             async def hoge(data, addr):
@@ -428,7 +498,7 @@ class BaseConnection:
             await asyncio.sleep(0.1)
 
     async def _handle_data(self, data, addr=None):
-        if isinstance(data, dict) and data.get("type") == "chunk":
+        if isinstance(data, dict) and data.get("type",None) == "chunk":
             if "UDP" in self.name and data.get("data",None) and "_ack" not in data["data"]:
                 # エコーと完了の通知は再度エコーしない。（無限ループになるため）
                 await self._echo(data, addr)
@@ -445,7 +515,7 @@ class BaseConnection:
     async def _echo(self, data, addr=None):
         """ エコーメソッド。通信相手のackメソッドを呼び出す。
         """
-        ack = {"type":"_ack","id":data.get("id"),"index":data.get("index")}
+        ack = {"callback":"_ack","id":data.get("id"),"index":data.get("index")}
         await self.sendto(ack, addr, wait=False)
 
     async def _set_echo(self, data, addr=None):
@@ -472,15 +542,15 @@ class BaseConnection:
     
     async def _done(self, data, addr=None):
         # UDP用の全データ受信完了のデータ送信
-        dn = {"type":"done","_uuid":data.get("_uuid"),"echo":False}
+        dn = {"callback":"done","_uuid":data.get("_uuid"),"echo":False}
         await asyncio.sleep(INTERVAL_TIME)
         await self.sendto(dn, addr, wait=False)
         await asyncio.sleep(INTERVAL_TIME)
 
     async def _invoke(self,data,addr):
         try:
-            # if isinstance(data, dict) and data.get("type", None):
-            typ = data["type"]
+            # if isinstance(data, dict) and data.get("callback", None):
+            typ = data["callback"]
             if hasattr(self,typ):
                 method = getattr(self, typ)
 
@@ -492,10 +562,15 @@ class BaseConnection:
             else:
                 print(f"{typ} is not callback.")
         except Exception as e:
+            self.debug(e)
             print(e)
 
-        if self._receive_callback is not None:
-            await self._receive_callback(data, addr)
+        try:
+            if self._receive_callback is not None:
+                await self._receive_callback(data, addr)
+        except Exception as e:
+            self.debug(e)
+            print(e)
 
     async def _ack(self,data,addr):
         id = data.get("id")
@@ -521,7 +596,7 @@ class BaseConnection:
             # ファイル保存
             with open(f"{filename}", mode="wb") as f:
                 f.write(filedata)
-            # await self.sendto({"type":"arrival","filename":filename,"id":id}, addr)
+            # await self.sendto({"callback":"arrival","filename":filename,"id":id}, addr)
 
     async def send(self, data, wait=True):
         pass
@@ -531,7 +606,7 @@ class BaseConnection:
 
     async def sendfile(self, filename, filedata, addr=None, queue=False):
         print("filename",filename)
-        data = {"type":"file","filedata":base64.b64encode(filedata).decode("ascii"),"filename":filename}
+        data = {"callback":"file","filedata":base64.b64encode(filedata).decode("ascii"),"filename":filename}
         if addr:
             if queue:
                 return self.enqueue(data,addr)
@@ -557,7 +632,7 @@ class BaseConnection:
             result = await self.sendfile(savepath, data, addr, queue)
         return result
     
-    async def open(self):
+    async def open(self,fileno=None):
         pass
 
     async def close(self):
@@ -587,12 +662,12 @@ class BaseConnection:
             except Exception as e:
                 print(e)
 
-    def run(self):
+    def run(self,fileno=None):
         """ Queue送信ワーカータスクを生成
         ### Note
             単なるサーバを起動(シンプルなパケットのやり取りのみを行う)
         """
-        asyncio.create_task(self.open())
+        asyncio.create_task(self.open(fileno))
     
     def coroutine(self,async_task):
         """ 別イベントループにタスクを登録する同期処理メソッド
@@ -601,7 +676,6 @@ class BaseConnection:
             result = self.coroutine(async_task).result()
         ```
         """
-        # return asyncio.run_coroutine_threadsafe(async_task, self.event_loop)
         return asyncio.create_task(async_task)
         
     def enqueue(self,data,addr):
@@ -718,13 +792,14 @@ class BaseConnection:
 
 class TCPServer(BaseConnection):
     def __init__(self, host=DUAL_STUCK_HOST, port=9999):
-        super().__init__()
+        super().__init__(host,port)
         self.host = host
         self.port = port
         self.clients = set()
         self.family = self.get_address_family(host)
 
-    async def open(self):
+    async def open(self,fileno=None):
+        # reuse_port=True で複数のワーカでも使いまわせるはず
         server = await asyncio.start_server(self._handle_client, self.host, self.port, family=self.family)
         self._closer = server
         async def _open(server):
@@ -806,7 +881,7 @@ class TCPServer(BaseConnection):
 
 class TCPClient(BaseConnection):
     def __init__(self, host=DUAL_STUCK_DEST, port=9999, local_port=9999):
-        super().__init__()
+        super().__init__(host,port)
         self.host = host
         self.port = port
         self.local_port = local_port
@@ -815,7 +890,7 @@ class TCPClient(BaseConnection):
         self.family = self.get_address_family(host)
         self._closer = asyncio.Event()
 
-    async def open(self):
+    async def open(self,fileno=None):
         # loop = asyncio.get_running_loop()
         # # sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         # sock = socket.socket(self.family, socket.SOCK_STREAM)
@@ -915,14 +990,14 @@ class TCPClient(BaseConnection):
 
 class UDPServer(BaseConnection):
     def __init__(self, host=DUAL_STUCK_HOST, port=9999):
-        super().__init__()
+        super().__init__(host,port)
         self.host = host
         self.port = port
         self.transport = None
         self.clients = set()
         self.family = self.get_address_family(host)
 
-    async def open(self):
+    async def open(self,fileno=None):
         self.status = "OPENING"
         try:
             loop = asyncio.get_running_loop()
@@ -930,9 +1005,11 @@ class UDPServer(BaseConnection):
                 await loop.create_datagram_endpoint(
                     lambda: self,
                     local_addr=(self.host, self.port),
+                    sock=self.reuse(fileno) if fileno else None,
                     family=self.family
                 )
             )
+            self.fileno = self._closer.get_extra_info('socket').fileno()
             self.status = "READY"
             asyncio.create_task(self.worker())
         except Exception as e:
@@ -1046,7 +1123,7 @@ class UDPClient(BaseConnection):
         self.transport = None
         self.family = self.get_address_family(host)
 
-    async def open(self):
+    async def open(self,fileno=None):
         self.status = "OPENING"
         try:
             loop = asyncio.get_running_loop()
@@ -1064,9 +1141,11 @@ class UDPClient(BaseConnection):
                 lambda: self,
                 remote_addr=remote_addr,
                 local_addr=local_addr,
+                sock=self.reuse(fileno) if fileno else None,
                 family=self.family
                 )
             )
+            self.fileno = self._closer.get_extra_info('socket').fileno()
             self.status = "READY"
             asyncio.create_task(self.worker())
 
@@ -1094,7 +1173,7 @@ class UDPClient(BaseConnection):
         asyncio.create_task(self._handle_data(obj, remote_addr))
 
     async def send(self, data, wait=True):
-        return await self.sendto(data)
+        return await self.sendto(data, wait)
 
     async def sendto(self, data, addr=None, wait=True):
         await self.wait()
@@ -1141,6 +1220,458 @@ class UDPClient(BaseConnection):
             del self.current_packet[uuid]
 
 
+class GeventConnection(BaseConnection):
+
+    def __init__(self,host,port):
+        self.host = host
+        self.port = port
+        self.family = self.get_address_family(host)
+        self.logger = None
+        self._receive_callback = None      # パケット全てに対して発火するコールバック関数登録用の変数
+        self._closer = None                # 通信の停止を担当するオブジェクト
+        self.assembler = PacketAssembler(sleeper=gevent) # 分割されたパケットを復元するオブジェクト
+        self.echos = {}                    # 相手からの応答が必要な場合にスタックさせるエコー保持用の辞書型データ
+        self.timer = {}                    # パケットID:パケット受信の最終更新日時を保持
+        self.taskmanager  = CommunicationTask(sleeper=gevent)
+        self.queue = queue.Queue()
+        self.current_packet = {}
+        self.transport = None
+        self._save = None
+        self._load = None
+        self._remv = None
+        self.send_lock = lock.RLock()
+        self.closing = False
+        self.saving = False
+        self.status = "OPENING" # OPENING READY RECONNECTING CLOSED
+        self.partners = set()
+        self.fileno = None
+
+    def debug(self,*args,**kwargs):
+        if self.logger:
+            self.logger.debug(*args,**kwargs)
+
+    @property
+    def name(self):
+        return super().name
+    
+    def check_complete_send_packet(self, uuid):
+        return super().check_complete_send_packet(uuid)
+    
+    def get_address_family(self, host):
+        return super().get_address_family(host)
+    
+    def get_resolve_address(self, addr):
+        return super().get_resolve_address(addr)
+    
+    def receive(self, callback):
+        return super().receive(callback)
+    
+    def callback(self, func):
+        return super().callback(func)
+
+    def wait(self):
+        while self.status != "READY":
+            gevent.sleep(0.1)
+
+    def _handle_data(self, data, addr=None):
+        if isinstance(data, dict) and data.get("type") == "chunk":
+            if "UDP" in self.name and data.get("data",None) and "_ack" not in data["data"]:
+                # エコーと完了の通知は再度エコーしない。（無限ループになるため）
+                gevent.spawn(self._echo, data, addr)
+
+            assembled = self.assembler.add(data)
+            if assembled:
+                obj = json.loads(assembled.decode())
+                # UUIDの指定とエコー要求があれば、受信応答を送る
+                if obj.get("_uuid",None) and obj.get("echo",False):
+                    gevent.spawn(self._done, obj, addr)
+                # 要求されたコールバックを発火
+                gevent.spawn(self._invoke, obj, addr)
+
+    def _echo(self, data, addr=None):
+        ack = {"callback":"_ack","id":data.get("id"),"index":data.get("index")}
+        gevent.spawn(self.sendto, ack, addr, wait=False)
+
+    def _set_echo(self, data, addr=None):
+        id = data["id"]
+        index = data["index"]
+        # remote_addr = self.get_resolve_address(addr)
+        remote_addr = addr
+        self.echos[(id, index, remote_addr[:2])] = False
+
+    def _wait_echo(self, data, addr=None):
+        """ エコーの応答を待ち、かえって来ない場合は失敗
+        """
+        timeout = time.time() + TIMEOUT_TIME
+        while time.time() < timeout:
+            id = data.get("id")
+            index = data.get("index")
+            # remote_addr = self.get_resolve_address(addr)
+            remote_addr = addr
+            if self.echos.get((id, index, remote_addr[:2]), False):
+                del self.echos[(id, index, remote_addr[:2])]
+                return False
+            gevent.sleep(INTERVAL_TIME)
+        return True
+
+    def _done(self, data, addr=None):
+        dn = {"callback":"done","_uuid":data.get("_uuid"),"echo":False}
+        gevent.sleep(INTERVAL_TIME)
+        gevent.spawn(self.sendto,dn, addr, wait=False)
+        gevent.sleep(INTERVAL_TIME)
+
+    def _invoke(self, data, addr):
+        try:
+            # if isinstance(data, dict) and data.get("callback", None):
+            typ = data["callback"]
+            if hasattr(self,typ):
+                method = getattr(self, typ)
+                # 非同期処理のの場合はawaitを付与し、それ以外は通常実行する
+                method(data,addr)
+            else:
+                print(f"{typ} is not callback.")
+        except Exception as e:
+            self.debug(e)
+            print(e)
+
+        try:
+            if self._receive_callback is not None:
+                self._receive_callback(data, addr)
+        except Exception as e:
+            self.debug(e)
+            print(e)
+
+    def _ack(self, data, addr):
+        id = data.get("id")
+        index = data.get("index")
+        # remote_addr = self.get_resolve_address(addr)
+        remote_addr = addr
+        # print("ack",(id, index, remote_addr), self.echos[(id, index, remote_addr)])
+        self.echos[(id, index, remote_addr)] = True
+    
+    def done(self, data, addr):
+        # UDP用の全データ受信完了通知の受信用メソッド
+        uuid = data.get("_uuid")
+        self.taskmanager.status(uuid,True)
+
+    def file(self, data, addr):
+        if data:
+            print("file writing")
+            filedata = base64.b64decode(data["filedata"])
+            filename = data["filename"]
+            id = data.get("id",None)
+            print("filename:" , filename)
+
+            # ファイル保存
+            with open(f"{filename}", mode="wb") as f:
+                f.write(filedata)
+
+    def open(self,fileno=None):
+        raise NotImplementedError
+    
+    def close(self):
+        raise NotImplementedError
+
+    def send(self, data, wait=True):
+        raise NotImplementedError
+
+    def sendto(self, data, addr=None, wait=True):
+        raise NotImplementedError
+
+    def sendfile(self, filename, filedata, addr=None, queue=False):
+        print("filename:",filename)
+        data = {"callback":"file","filedata":base64.b64encode(filedata).decode("ascii"),"filename":filename}
+        if addr:
+            if queue:
+                return gevent.spawn(self.enqueue,data,addr).get()
+            else:
+                return gevent.spawn(self.sendto, data, addr).get()
+        else:
+            if queue:
+                return gevent.spawn(self.enqueue,data,addr).get()
+            else:
+                return gevent.spawn(self.send, data).get()
+
+    def send_by_open_file(self, filepath, savepath, addr=None, queue=False):
+        result = False
+        data = None
+        try:
+            with open(filepath,"rb") as f:
+                data = f.read()
+        except Exception as e:
+            self.debug(e)
+            print(e)
+        
+        if data:
+            result = gevent.spawn(self.sendfile, savepath, data, addr, queue).get()
+        return result
+    
+
+    def reconnect(self):
+        if self.status != "RECONNECTING":
+            return
+        try:
+            gevent.spawn(self.close)
+        except Exception as e:
+            print(e)
+
+        while True:
+            try:
+                gevent.sleep(1)
+                gevent.spawn(self,open)
+                break
+            except Exception as e:
+                print(e)
+
+    def run(self,fileno=None):
+        gevent.spawn(self.open,fileno).get()
+        self.taskmanager.run()
+
+    def coroutine(self, task):
+        return gevent.spawn(task).get()
+    
+    def enqueue(self, data, addr):
+        result = None
+        try:
+            uuid = self.taskmanager.append()
+            data["_uuid"] = uuid
+            data["echo"] = True
+            item = {
+                "data": data,
+                "addr": addr,
+                "retry": 0,
+                "created": time.time()
+            }
+            self.queue.put_nowait(item)
+            result = uuid
+        except Exception as e:
+            self.debug(e)
+            print(e)
+
+        return result
+    
+    def _worker(self):
+        """ 未送信データの送信ワーカー(主にUDP用)
+        """
+        print("worker is running")
+        def resend(item):
+            item["retry"] += 1
+            if item["retry"] <= RETRY_TIME:
+                gevent.sleep(2 ** item["retry"])
+                self.queue.put_nowait(item)
+            else:
+                self.save(item)
+        
+        while True:
+            item = self.queue.get()
+            uuid = item["data"]["_uuid"]
+            self.current_packet[uuid] = item
+            try:
+                print("worker sending:", item["addr"])
+                ok = gevent.spawn(self.sendto,item["data"],item["addr"]).get()
+                print("ok",ok)
+                if ok:
+                    self.remove(item)
+                    del self.current_packet[uuid]
+                else:
+                    gevent.spawn(resend,item).get()
+            except Exception as e:
+                print(e)
+                gevent.spawn(resend,item).get()
+            gevent.sleep(INTERVAL_TIME)
+
+    def _receiver(self):
+        while self.status == "READY":
+            try:
+                raw, addr = self.transport.recvfrom(RECEIVE_SIZE)
+                obj = json.loads(raw.decode())
+                self.partners.add(addr)
+                gevent.spawn(self._handle_data, obj, addr)
+            except socket.error as e:
+                print(e)
+                break
+
+    def save(self, item):
+        return super().save(item)
+    
+    def save_handler(self, func):
+        return super().save_handler(func)
+    
+    def load(self):
+        return super().load()
+    
+    def load_handler(self, func):
+        return super().load_handler(func)
+    
+    def remove(self, item):
+        return super().remove(item)
+    
+    def remove_handler(self, func):
+        return super().remove_handler(func)
+
+
+class UDPGServer(GeventConnection):
+    def __init__(self, host=DUAL_STUCK_HOST, port=9999):
+        super().__init__(host,port)
+
+    def open(self,fileno=None):
+        self.status = "OPENING"
+        try:
+            # 受信ソケットを作成
+            if fileno:
+                self.transport = self.reuse(fileno)
+            else:
+                self.transport = socket.socket(self.family, socket.SOCK_DGRAM)
+                if self.family == socket.AF_INET6 and self.host != DUAL_STUCK_HOST:
+                    self.transport.bind((self.host, self.port, FLOWINFO, self.find_scopeid(self.host)))
+                else:
+                    self.transport.bind((self.host, self.port))
+            self.fileno = self.transport.fileno()
+            self.status = "READY"
+
+            # 受信グリーンレット
+            self.receiver = gevent.spawn(self._receiver)
+
+            # 送信キューのワーカー
+            self.worker = gevent.spawn(self._worker)
+        except Exception as e:
+            self.status = "CLOSED"
+            raise e
+
+    def close(self):
+        self.status = "CLOSED"
+        if self.transport:
+            self.transport.close()
+            self.transport = None
+
+    def send(self, data, wait=True):
+        gevent.spawn(self.wait).get()
+        if self.closing or self.transport is None:
+            return False
+
+        raw = json.dumps(data).encode()
+        pid, chunks = Packet.split(raw)
+        result = True
+        for chunk in chunks:
+            for i, addr in enumerate([*self.partners]): # NOTE:送信中に接続相手が増えるリスクがあるためコピーしておく
+                gevent.spawn(self._set_echo,chunk,addr)
+                self.transport.sendto(json.dumps(chunk).encode(),addr)
+                gevent.sleep(INTERVAL_TIME)
+                if wait:
+                    retry = 0
+                    while gevent.spawn(self._wait_echo,chunk,addr).get() and retry < RETRY_TIME:
+                        if retry >= RETRY_TIME:
+                            # raise Exception(f"送信に失敗しました。:{addr}:{data}")
+                            print(f"送信に失敗しました。:{addr}:{data}")
+                            result = False
+                        else:
+                            self.transport.sendto(json.dumps(chunk).encode(),addr)
+                        retry += 1
+        return result
+
+
+    def sendto(self, data, addr=None, wait=True):
+        gevent.spawn(self.wait).get()
+        if self.closing or self.transport is None:
+            return False
+        
+        remote_addr = self.get_resolve_address(addr)
+        raw = json.dumps(data).encode()
+        pid, chunks = Packet.split(raw)
+        result = True
+        try:
+            for i, chunk in enumerate(chunks):
+                if wait:
+                    gevent.spawn(self._set_echo,chunk,remote_addr)
+                self.transport.sendto(json.dumps(chunk).encode(), remote_addr)
+                gevent.sleep(INTERVAL_TIME)
+                if wait:
+                    retry = 0
+                    while gevent.spawn(self._wait_echo,chunk,addr).get() and retry < RETRY_TIME:
+                        if retry >= RETRY_TIME:
+                            print(f"送信に失敗しました。:{addr}:{data}")
+                            result = False
+                        else:
+                            self.transport.sendto(json.dumps(chunk).encode(), remote_addr)
+                        retry += 1
+            return result
+        except Exception as e:
+            print(e)
+            result = False
+            return result
+
+
+class UDPGClient(GeventConnection):
+    def __init__(self, host=DUAL_STUCK_DEST, port=9999, local_port=None):
+        super().__init__(host,port)
+        self.local_port = local_port
+
+    def open(self,fileno=None):
+        self.status = "OPENING"
+        try:
+            local_addr = None
+            remote_addr = (self.host,self.port)
+            if self.family == socket.AF_INET6 and self.host != DUAL_STUCK_HOST:
+                local_addr = (self.host, self.local_port, FLOWINFO, self.find_scopeid(self.host)) if self.local_port else None
+            else:
+                local_addr = (self.host, self.local_port) if self.local_port else None
+
+            if fileno:
+                self.transport = self.reuse(fileno)
+            else:
+                self.transport = socket.socket(self.family,socket.SOCK_DGRAM)
+                if self.local_port:
+                    self.transport.bind(local_addr)
+            self.fileno = self.transport.fileno()
+            self.status = "READY"
+            gevent.spawn(self._receiver)
+            gevent.spawn(self._worker)
+        
+        except Exception as e:
+            self.status = "CLOSE"
+            raise e
+
+    def close(self):
+        self.status = "CLOSE"
+        if self.transport:
+            self.transport.close()
+            self.transport = None
+
+    def send(self, data, wait=True):
+        return gevent.spawn(self.sendto, data, wait).get()
+    
+    def sendto(self, data, addr=None, wait=True):
+        gevent.spawn(self.wait).get()
+        if self.closing or self.transport is None:
+            return False
+
+        remote_addr = self.get_resolve_address(addr)
+        raw = json.dumps(data).encode()
+        pid, chunks = Packet.split(raw)
+        result = True
+
+        try:
+            for i, chunk in enumerate(chunks):
+                print(chunk)
+                if wait:
+                    gevent.spawn(self._set_echo,chunk,remote_addr)
+                self.transport.sendto(json.dumps(chunk).encode(),remote_addr)
+                gevent.sleep(INTERVAL_TIME)
+                if wait:
+                    retry = 0
+                    while gevent.spawn(self._wait_echo,chunk,addr).get() and retry < RETRY_TIME:
+                        if retry >= RETRY_TIME:
+                            print(f"送信に失敗しました。:{addr}:{data}")
+                            result = False
+                        else:
+                            self.transport.sendto(json.dumps(chunk).encode(),addr)
+                        retry += 1
+        except Exception as e:
+            print(e)
+            result = False
+        return result
+
+
 async def test():
     """
     py -m common.communication "server" "::1" "9999"
@@ -1185,14 +1716,14 @@ async def test():
     if mode == "server":
         # 同時に通信を行う場合
         asyncio.gather(*[
-            udp.sendto({"type":"test","message":"This is TEST"},(host,port-1)),
-            udp.sendto({"type":"test","message":"This is TEST2"},(host,port-1))
+            udp.sendto({"callback":"test","message":"This is TEST"},(host,port-1)),
+            udp.sendto({"callback":"test","message":"This is TEST2"},(host,port-1))
         ])
 
-        uuid = udp.enqueue({"type":"test","message":"hello client"},(host,port-1))
+        uuid = udp.enqueue({"callback":"test","message":"hello client"},(host,port-1))
     elif mode == "client":
-        asyncio.gather(*[udp.sendto({"type":"test","message":"This is TEST"},(host,port))])
-        uuid = udp.enqueue({"type":"test","message":"hello server"},(host,port))
+        asyncio.gather(*[udp.sendto({"callback":"test","message":"This is TEST"},(host,port))])
+        uuid = udp.enqueue({"callback":"test","message":"hello server"},(host,port))
 
     while True:
         await asyncio.sleep(1)

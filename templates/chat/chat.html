@@ -1,0 +1,19 @@
+<div class="chat-container" data-id="{{data.id}}" data-is_converted="false">
+    <div class="chat-frame box w-100">
+        <div class="chat-info">
+            <div>
+                <img class="icon" src="{{user.icon or url_for('static', filename='img/default_256x256.png')}}" />
+                <span class="chat-user">{{user.name}}</span>
+            </div>
+            <div>
+                <img class="icon pointer trs-btn" src="{{url_for('static', filename='img/icon/trash.svg')}}"
+                    hx-delete="{{url_for('chat.delete',room_id=data.room_id)}}"
+                    hx-vals='{"id":"{{data.id}}"}'
+                    hx-swap="none"
+                />
+                <img class="icon pointer edt-btn" src="{{url_for('static', filename='img/icon/edit.svg')}}" />
+            </div>
+        </div>
+        <p class="chat-text">{{data.text}}</div>
+    </div>
+</div>
