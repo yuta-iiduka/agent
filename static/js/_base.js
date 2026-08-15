@@ -73,7 +73,7 @@ function show_message(str="",callback=null){
         if(callback){
             callback(msg);
         }else if(alert_modal){
-            alert_modal.show(msg);
+            alert_modal.message(msg);
         }else{
             window.alert(msg);
         }        
