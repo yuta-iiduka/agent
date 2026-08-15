@@ -1,0 +1,28 @@
+{% extends "_base.html" %}
+{% block css %}
+    <link rel="stylesheet" href="{{url_for('static',filename='css/_/toastui-calendar.min.css')}}">
+{% endblock %}
+{% block title %}ROOM INDEX{% endblock %}
+
+{% block content %}
+    <div class="level">
+        <div class="level-left">
+            <div class="buttons">
+                <button id="prev" class="button">前へ</button>
+
+                <button id="today" class="button">今日</button>
+
+                <button id="next"class="button">次へ</button>
+            </div>
+        </div>
+
+        <div class="level-item">
+            <strong id="calendar-title"></strong>
+        </div>
+    </div>
+    <div id="calendar"></div>
+{% endblock %}
+
+{% block script %}
+    <script src="{{url_for('static',filename='js/_/toastui-calendar.min.js')}}"></script>
+{% endblock %}

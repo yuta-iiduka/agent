@@ -1,0 +1,13 @@
+{% extends "_base.html" %}
+{% block css %}
+    <link rel="stylesheet" href="{{url_for('static',filename='css/_/toastui-chart.min.css')}}">
+{% endblock %}
+{% block title %}ROOM INDEX{% endblock %}
+
+{% block content %}
+    <div id="chart"></div>
+{% endblock %}
+
+{% block script %}
+    <script src="{{url_for('static',filename='js/_/toastui-chart.min.js')}}"></script>
+{% endblock %}

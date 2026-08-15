@@ -123,8 +123,6 @@ htmx.on("htmx:after-request", (e)=>{
         console.log(e.detail.xhr);
         const users = JSON.parse(e.detail.xhr.response).map((u)=>{return {id:u.id,name:u.name,email:u.email}});
         console.log(users);
-        grid.resetData(users);
-        grid.refreshLayout();
     }
 });
 
@@ -146,12 +144,7 @@ htmx.on("htmx:before-request", (e)=>{
 
 const modal = new BulmaModal();
 modal.template = tmplate_modal;
-modal.body.innerHTML = `
-    <div id="grid-frame" class="w-100">
-            <div id="grid"></div>
-            <div id="pagination"></div>
-    </div>
-`;
+modal.body.innerHTML = ``;
 const ok = document.createElement("button");
 ok.id = "ok";
 ok.textContent = "OK"
@@ -162,10 +155,6 @@ ok.setAttribute("hx-ext","json-enc");
 ok.setAttribute("hx-swap","none");
 ok.addEventListener("click",()=>{
     modal.hide();
-    room_users = [];
-    const checkedRows = grid.getCheckedRows();
-    console.log(checkedRows);
-    room_users = checkedRows;
 });
 
 const cancel = document.createElement("button");
@@ -178,26 +167,5 @@ cancel.addEventListener("click",()=>{
 
 modal.button(ok);
 modal.button(cancel);
-
-let grid = null;
-document.addEventListener("DOMContentLoaded",(e)=>{
-    grid = new tui.Grid({
-        el: document.getElementById("grid"),
-        rowHeaders:["checkbox"],
-        scrollX: false,
-        scrollY: false,
-        columns: [
-                {header: "ID"   , name: "id"   ,align: "center", width: "64"},
-                {header: "NAME" , name: "name" ,align: "center", width: "240"},
-                {header: "EMAIL", name: "email",align: "center", width: "240"},
-        ],
-        data:[],
-        pageOptions: {
-            useClient: true,
-            perPage:20,
-        }
-    });
-    htmx.process(ok);
-});
 
 

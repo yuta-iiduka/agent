@@ -1,0 +1,42 @@
+/* レスポンシブを考えると以下の設定が無難か？ */
+#image-editor{
+    width:100%;
+    height:100%;
+}
+
+.tui-image-editor-header-logo {
+    display: none !important;
+}
+
+.tui-image-editor-menu {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    height: auto !important;
+    min-height: 54px;
+    justify-content: center;
+    align-items: center;
+}
+
+.tui-image-editor-menu > li {
+    flex-shrink: 0;
+}
+
+.tui-image-editor-help-menu{
+    display: flex !important;
+    flex-wrap: wrap !important;
+    height: auto !important;
+    min-height: 54px;
+    justify-content: center;
+    align-items: center;
+}
+
+.tui-image-editor-help-menu > li{
+    flex-shrink: 0;
+}
+
+.tui-image-editor-header{
+    display: flex;
+    width: 100vw !important;
+    justify-content: flex-start;
+    align-items: center;
+}

@@ -22,23 +22,26 @@ def room_create():
         print(data)
         id_list = data.get("id_list",[])
         id_list  = list(set(id_list))
-        rom = Room()
-        rom.name     = f"CHAT ROOM"
-        rom.password = ""
-        rom.status   = 1
-        rom.group    = current_user.group
-        rom.owner_id = current_user.id
-        db.session.add(rom)
-        db.session.flush()
+        if len(id_list) > 0:
+            rom = Room()
+            rom.name     = f"CHAT ROOM"
+            rom.password = ""
+            rom.status   = 1
+            rom.group    = current_user.group
+            rom.owner_id = current_user.id
+            db.session.add(rom)
+            db.session.flush()
 
-        for user_id in id_list:
-            relation = RelationRoomToUser()
-            relation.user_id = user_id
-            relation.room_id = rom.id
-            db.session.add(relation)
+            for user_id in id_list:
+                relation = RelationRoomToUser()
+                relation.user_id = user_id
+                relation.room_id = rom.id
+                db.session.add(relation)
 
-        db.session.commit()
-        result = jsonify({"message":"ルームの作成に成功しました。"})
+            db.session.commit()
+            result = jsonify({"message":"ルームの作成に成功しました。"})
+        else:
+            result = jsonify({"message":"ルームの作成に失敗しました。"})
     except Exception as e:
         print(e)
         db.session.rollback()

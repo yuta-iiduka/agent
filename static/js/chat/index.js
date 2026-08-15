@@ -128,7 +128,6 @@ htmx.on("htmx:after-request", (e)=>{
     }
 });
 
-
 htmx.on("htmx:before-request", (e)=>{
     console.log(e.detail.elt);
     if(e.detail.elt.id == "ok"){
@@ -143,7 +142,6 @@ htmx.on("htmx:before-request", (e)=>{
 /**
  * モーダルの初期化
  */
-
 const modal = new BulmaModal();
 modal.template = tmplate_modal;
 modal.body.innerHTML = `
