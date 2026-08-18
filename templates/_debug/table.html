@@ -1,0 +1,39 @@
+{% extends "_base.html" %}
+
+{% block title %}テーブル{% endblock %}
+{% block content %}
+    <div class="container">
+        <table class="table">
+            <thead>
+                <tr>
+                    {% for n, t in model["types"].items() %}
+                        {% if n in model["primary_keys"] %}
+                        <th data-field="{{n}}" data-type="str" style="color:aqua">{{n}}:{{t}}</th>
+                        {% else %}
+                        <th data-field="{{n}}" data-type="str">{{n}}:{{t}}</th>
+                        {% endif %}
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+            {% for d in data %}
+                <tr>
+                    {% for n, t in model["types"].items() %}
+                        {% if n in model["primary_keys"] %}
+                        <td data-{{n}}>{{d[n]}}</td>
+                        {% else %}
+                        <td data-{{n}}>{{d[n]}}</td>
+                        {% endif %}
+                    {% endfor %}
+                </tr>
+            {% endfor %}
+            </tbody>
+            <tfoot></tfoot>
+        </table>
+    </div>
+
+{% endblock %}
+
+
+{% block script %}
+{% endblock %}

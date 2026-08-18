@@ -24,6 +24,37 @@ def transaction(func):
             raise e
     return wrapper
 
+class Models():
+
+    @property
+    def index(self):
+        mdls = inspect.getmembers( sys.modules[__name__], inspect.isclass)
+        return {name:cls for name, cls in mdls if hasattr(cls,"__tablename__")}
+
+    @property
+    def info(self):
+        tmp = {}
+        for model_name, model_class in self.index.items():
+            tmp[model_name] = {
+                "class": model_class,
+                "name": model_name,
+                "tablename": model_class.__tablename__,
+                "columns": self.columns(model_class),
+                "primary_keys": self.primary_keys(model_class),
+                "types": self.types(model_class),
+            }
+        return tmp
+
+    def primary_keys(self, model):
+        return [key.name for key in model.__table__.primary_key.columns]
+
+    def columns(self, model):
+        return [col.name for col in model.__table__.columns]
+
+    def types(self, model):
+        return {col.name: col.type.__str__() for col in model.__table__.columns}
+    
+
 class BaseColumn(object):
     id         = db.Column(db.Integer,  primary_key=True)
     status     = db.Column(db.Integer,  default=0)
@@ -220,4 +251,7 @@ class Memo(db.Model,UserMixin,BaseColumn):
     
 
 if __name__ == "__main__":
-    pass
+    m = Models()
+    print(m.index)
+    for  k,v in m.info.items():
+        print(k,v)

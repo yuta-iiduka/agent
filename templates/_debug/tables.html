@@ -1,0 +1,30 @@
+{% extends "_base.html" %}
+
+{% block title %}テーブル一覧{% endblock %}
+{% block content %}
+    <div class="container">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th data-field="model"  data-type="str">モデル</th>
+                    <th data-field="table"  data-type="str">テーブル</th>
+                    <th data-field="detail" data-type="str">詳細</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for name, info in models.items() %}
+                <tr>
+                    <td data-model="{{name}}"                   >{{name}}</td>
+                    <td data-table="{{info['tablename']}}"      ><a href="{{url_for('debug.table',table=name)}}">{{info["tablename"]}}</a></td>
+                    <td data-detail="{{info['class'].__doc__}}" ><pre>{{info["class"].__doc__}}</pre></td>
+                </tr>
+            {% endfor %}
+            </tbody>
+            <tfoot></tfoot>
+        </table>
+    </div>
+{% endblock %}
+
+
+{% block script %}
+{% endblock %}
