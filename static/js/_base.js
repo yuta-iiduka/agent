@@ -142,8 +142,8 @@ document.addEventListener("DOMContentLoaded", ()=>{
     document.body.style.display = "block";
     // メッセージがあれば表示
     setTimeout(()=>{show_message();},100);
-    document.addEventListener('htmx:afterRequest', (e)=>{
-        console.log("AJAX request completed!");
-    });
+
+    htmxm = new HTMXManager(htmx);
+    htmxm.init_event();
 });
 

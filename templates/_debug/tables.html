@@ -1,6 +1,9 @@
 {% extends "_base.html" %}
 
 {% block title %}テーブル一覧{% endblock %}
+{% block tool %}
+    
+{% endblock %}
 {% block content %}
     <div class="container">
         <table class="table">
@@ -15,7 +18,7 @@
             {% for name, info in models.items() %}
                 <tr>
                     <td data-model="{{name}}"                   >{{name}}</td>
-                    <td data-table="{{info['tablename']}}"      ><a href="{{url_for('debug.table',table=name)}}">{{info["tablename"]}}</a></td>
+                    <td data-table="{{info['tablename']}}"      ><a href="{{url_for('_debug.table',table=name)}}">{{info["tablename"]}}</a></td>
                     <td data-detail="{{info['class'].__doc__}}" ><pre>{{info["class"].__doc__}}</pre></td>
                 </tr>
             {% endfor %}
