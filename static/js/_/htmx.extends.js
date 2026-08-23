@@ -5,7 +5,9 @@ class HTMXManager{
     static handlers = {} // {event:[{"id":callback}]}
     static events = [
         "htmx:beforeRequest",
+        "htmx:before-request",
         "htmx:afterRequest",
+        "htmx:after-request",
         "htmx:beforeSwap",
         "htmx:afterSwap",
         "htmx:load",          // HTMXによるDOM追加が行われた際のイベント
@@ -27,9 +29,10 @@ class HTMXManager{
             this.htmx.on(name, (e)=>{
                 const handlers = HTMXManager.handlers;
                 const handler_dict = handlers[name] || [];
-                for(let i of Object.keys(handler_dict)){
-                    if(i == e.detail.elt.id){
-                        handler_dict[i](e);
+                for(let handler of handler_dict){
+                    const func = handler[e.detail.elt.id];
+                    if(func){
+                        func(e);
                         console.log("event.target:", event.target);
                         console.log("detail.elt:", event.detail?.elt);
                         console.log("detail.target:", event.detail?.target);
@@ -42,18 +45,48 @@ class HTMXManager{
     }
 
     appendEvent(event, id, callback){
-        if(typeof(HTMXManager.handlers[event]) == undefined){
-            HTMXManager.handlers[event] = []
+        if(HTMXManager.handlers[event] == undefined){
+            HTMXManager.handlers[event] = [];
+        }
+        let target = id;
+        if(typeof(id) != "string"){
+            target = id.id;
         }
         const tmp = {}
-        tmp[id] = callback
+        tmp[target] = callback
         HTMXManager.handlers[event].push(tmp);
     }
 
+    /**
+     * appendEventの別名
+     * @param {*} event 
+     * @param {*} id 
+     * @param {*} callback 
+     * @returns 
+     */
+    on(event, id , callback){
+        return this.appendEvent(event, id , callback)
+    }
+
     removeEvent(event, id){
-        if(typeof(HTMXManager.handlers[event]) == undefined){
+        if(HTMXManager.handlers[event] == undefined){
             HTMXManager.handlers[event] = [];
         }
-        HTMXManager.handlers[event] = HTMXManager.handlers[event].filter((d)=>d.id!=id);
+        let target = id;
+        if(typeof(id) != "string"){
+            target = id.id;
+        }
+        HTMXManager.handlers[event] = HTMXManager.handlers[event].filter((d)=>d.id != target);
     }
+
+    /**
+     * removeEventの別名
+     * @param {*} event 
+     * @param {*} id 
+     * @returns 
+     */
+    rm(event, id){
+        return this.removeEvent(event, id, callback);
+    }
+
 }

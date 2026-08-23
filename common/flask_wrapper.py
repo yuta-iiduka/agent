@@ -97,8 +97,14 @@ class SingletonFlask:
             self.socketio      = None
 
             option = {"cors_allowed_origins":"*"}
+
+            if async_mode == "gevent":
+                from gevent import monkey
+                monkey.patch_all()
+                
             global is_enable_redis
             if is_enable_redis:
+
                 self.celery = celery.Celery(
                     "tasks",
                     broker  = f"{self.redis_url}{self.task_index_broker}",
@@ -117,19 +123,12 @@ class SingletonFlask:
                 )
                 if self.ping_redis():
                     option["message_queue"] = f"{self.redis_url}{self.task_index_ws}"
-                    pass
                 else:
                     print("Redisサーバへのpingが失敗しました。設定やサービスが起動していることを確認してください。")
                     # モジュールなどの準備ができていてもping()が有効でない場合は、フラグをFlaseに戻して、無効化する。
                     is_enable_redis = False
 
-
-                if async_mode == "gevent":
-                    from gevent import monkey
-                    monkey.patch_all()
-                    self.socketio = SocketIO(self.app, async_mode="gevent", **option)
-                else:
-                    self.socketio = SocketIO(self.app, async_mode=async_mode, **option)
+            self.socketio = SocketIO(self.app, async_mode=async_mode, **option)
 
 
             SingletonFlask._instance = self

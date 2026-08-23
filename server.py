@@ -60,7 +60,8 @@ def connect():
     join_room(room)
     print("join_room",room)
     # socketio.emit("connect", {"message":f"connect:{current_user.id}:{current_user.email}"}, to=room)
-    socketio.emit("message", {"message":f"connect:{current_user.id}:{current_user.email}"}, to=room)
+    # socketio.emit("message", {"message":f"connect:{current_user.id}:{current_user.email}"}, to=room)
+    emit("message", {"message":f"connect:{current_user.id}:{current_user.email}"}, to=room)
 
 def create_app():
     global socketio, app, aps

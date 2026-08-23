@@ -41,8 +41,18 @@ function url_param(key,val=null){
  * @param {String} endpoint 
  * @returns
  */
-function url_for(endpoint){
-    return endpoints[endpoint];
+function url_for(endpoint,option={}){
+    let param = "";
+    let param_list = [];
+    const param_keys = Object.keys(option);
+    if(param_keys.length > 0){
+        param = "?";
+    }
+    for(let key of param_keys){
+        param_list.push(`${key}=${option[key]}`);
+    }
+    param += param_list.join("&");
+    return `${endpoints[endpoint]}${param}`;
 }
 
 /**
@@ -130,20 +140,29 @@ function to_markdown(dom){
     return result;
 }
 
+let contextmenu = null;
+function init_contextmenu(){
+    // 右クリックメニューの初期化
+    contextmenu = new TUIContextMenu();
+    return contextmenu;
+    
+}
 
 document.addEventListener("DOMContentLoaded", ()=>{
     // ヘッダー・フッターの表示・非表示
     frame = url_param("frame");
-    if(frame=="false"){
+    if(frame && JSON.parse(frame)==false){
         head.style.display = "none";
         foot.style.display = "none";
         body.style.height = "100%";
     }
     document.body.style.display = "block";
-    // メッセージがあれば表示
-    setTimeout(()=>{show_message();},100);
 
+    // HTMXの初期化
     htmxm = new HTMXManager(htmx);
     htmxm.init_event();
+
+    // メッセージがあれば表示
+    setTimeout(()=>{show_message();},100);
 });
 

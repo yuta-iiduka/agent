@@ -27,6 +27,58 @@
     height: 64px;
 }
 
+#chat-room-list li{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#chat-room-list a{
+    width: calc(100% - 30px);
+    overflow: hidden;
+}
+
+#chat-room-list div{
+    width: 24px;
+    margin-left: 6px;
+    cursor: pointer;
+}
+
+.side-sub-menu{
+    display : block;
+    position: fixed;
+    background-color: whitesmoke;
+    border-radius: 3px;
+    width: 240px;
+}
+
+.side-sub-menu-list{
+    display : block;
+    width: 100%;
+}
+
+.side-sub-menu-item{
+    display : block;
+    width: calc(100% - 8px);
+    padding:4px;
+    margin:4px;
+    border-radius: 3px;
+}
+
+.side-sub-menu-item:hover{
+    color: #839496;
+    background-color: #073642;
+}
+
+.chat-link-icon{
+    border-radius: 3px;
+    border:1px solid whitesmoke;
+}
+
+.chat-link-icon:hover{
+    border-radius: 3px;
+    border:1px solid #073642;
+}
 
 /* メイン */
 .main-content {

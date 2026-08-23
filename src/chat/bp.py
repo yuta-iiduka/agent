@@ -39,7 +39,7 @@ def room_create():
                 db.session.add(relation)
 
             db.session.commit()
-            result = jsonify({"message":"ルームの作成に成功しました。"})
+            result = jsonify({"message":"ルームの作成に成功しました。", "id":rom.id, "name":rom.name})
         else:
             result = jsonify({"message":"ルームの作成に失敗しました。"})
     except Exception as e:
@@ -98,6 +98,7 @@ def post(room_id):
         flash("登録するチャットルームが見つかりませんでした。")
 
     socketio.emit(
+    # emit(
         "chat",
         {"method":method,"id":room_chat.id,"text":text},
         to=f"chat-room-{room_id}"
@@ -114,6 +115,7 @@ def delete(room_id):
         db.session.delete(room_chat)
         db.session.commit()
         socketio.emit("chat",{"method":"delete","id":room_chat.id},to=f"chat-room-{room_id}")
+        # emit("chat",{"method":"delete","id":room_chat.id},to=f"chat-room-{room_id}")
     else:
         return jsonify({"message":"削除に失敗しました。"})
 
@@ -134,6 +136,7 @@ def join_chat_room(data):
         join_room(room)
         data["room"] = room
         socketio.emit("message", data, to=room)
+        # emit("message", data, to=room)
 
 
 @socketio.event
@@ -141,6 +144,7 @@ def message(data):
     print(data)
     room = data.get("room",None)
     socketio.emit("message", data, to=room)
+    # emit("message", data, to=room)
 
 @log
 def init_user_room():

@@ -12,7 +12,7 @@ const chat_id = document.getElementById("chat-id");
 const room_id = document.getElementById("room-id");
 
 // const socketio = io();
-const socketio = io(window.location.origin,{transports:["websocket"],withCredentials: true});
+const socketio = io(window.location.origin,{transports:["websocket"], withCredentials: true});
 
 socketio.on("connect", (data)=>{
     console.log("connect server.");
@@ -54,6 +54,19 @@ document.addEventListener("DOMContentLoaded",()=>{
         set_edit_button(e);
     });
     socketio.emit("join_chat_room",{room_id:room_id.value});
+
+    htmxm.on("htmx:after-request", "button-send", (e)=>{
+        console.log(e);
+        // 成功した場合だけクリア
+        if (e.detail.xhr.status >= 200 &&
+            e.detail.xhr.status < 300) {
+            const id = chat_id.value;
+            chat_textarea.value = "";
+            chat_id.value = "";
+            mode_send();
+        }
+    });
+
 });
 
 function append_chat(html){
@@ -113,14 +126,3 @@ function mode_edit(){
     button_cancel.classList.remove("hide");
 }
 
-htmx.on("htmx:after-request", (e)=>{
-    console.log(e);
-    // 成功した場合だけクリア
-    if (e.detail.xhr.status >= 200 &&
-        e.detail.xhr.status < 300) {
-        const id = chat_id.value;
-        chat_textarea.value = "";
-        chat_id.value = "";
-        mode_send();
-    }
-});

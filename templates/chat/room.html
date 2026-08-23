@@ -51,7 +51,6 @@
                                 hx-include="#csrf_token, #chat-textarea, #room-id, #chat-id"
                                 hx-target="#chat-body"
                                 hx-swap="none"
-                                hx-on:htmx:after-request="console.log('hx-on:htmx:after-request clicked.')"
                             ><img src="{{url_for('static',filename='img/icon/send.svg')}}" /></button>
                             <button id="button-cancel" class="button hide">キャンセル</button>
                             <button id="button-edit" class="button hide" 

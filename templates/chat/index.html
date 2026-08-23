@@ -33,7 +33,7 @@
                 <p class="menu-label">
                     TOOLS
                 </p>
-                <ul class="menu-list">
+                <ul id="chat-tool-list" class="menu-list">
                     <li>
                         <a id="button-search" class="link is-info" data-url=""><img class="icon is-small" src="{{url_for('static',filename='img/icon/search.svg')}}" />ルーム検索</a>
                     </li>
@@ -50,10 +50,11 @@
                 <p class="menu-label">
                     CHAT
                 </p>
-                <ul class="menu-list">
+                <ul id="chat-room-list" class="menu-list">
                     {% for room in data %}
                     <li>
-                        <a class="chat-link link is-primary" data-url="{{url_for('chat.room',room_id=room.id,frame='false')}}" data-name="{{room.name}}">{{room.name}}</a>
+                        <a class="chat-link link is-primary" data-id="{{room.id}}" data-url="{{url_for('chat.room',room_id=room.id,frame='false')}}" data-name="{{room.name}}">{{room.name}}</a>
+                        <div class="chat-link-icon icon"><img src="{{url_for('static', filename='img/three-dots.svg')}}" /></div>
                     </li>
                     {% endfor %}
                 </ul>
@@ -89,8 +90,14 @@
             </div>
         </main>
     </div>
+{% endblock %}
 
+{% block tool %}
+    <div class="side-sub-menu hide">
+        <ul class="side-sub-menu-list" class="menu-list">
 
+        </ul>
+    </div>
 {% endblock %}
 
 {% block script %}

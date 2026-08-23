@@ -35,7 +35,7 @@ body{
 }
 
 .tool{
-    
+
 }
 
 .hide{
@@ -92,4 +92,19 @@ body{
 ::-webkit-scrollbar-track {
     background-color: var(--bulma-background, black);
     border-radius: 4px;
+}
+
+/* TUIとBulmaの調整 */
+
+.tui-contextmenu-button{
+    width: 100%;
+    padding: 0px;
+    margin:0px;
+}
+.tui-contextmenu-disable:hover{
+    padding: 0px;
+}
+
+.tui-contextmenu{
+    padding: 4px;
 }
