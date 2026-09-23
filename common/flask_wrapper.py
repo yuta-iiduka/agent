@@ -21,10 +21,10 @@
     ```
 """
 # 標準ライブラリ
-import threading, os
+import threading,functools,importlib
 # 外部ライブラリ
 from flask import Flask
-from flask_login import LoginManager
+from flask_login import LoginManager, current_user
 from flask_socketio import SocketIO
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
@@ -33,6 +33,7 @@ is_enable_redis = False
 redis_error = ""
 try:
     import redis, celery
+    from celery.result import AsyncResult
     is_enable_redis = True
 except Exception as e:
     redis_error = e
@@ -160,13 +161,15 @@ class SingletonFlask:
                 result = False
         return result
     
-    def send_task(self,import_path):
+    def send_task(self,import_path,*args,**kwargs):
         """
         ### Args
         import_path(str):登録する関数までのインポートルートパス 
         ex) "src._api.bp.heavy"
         """
-        task = self.celery.send_task(import_path)
+        user_id = current_user.id
+        kwargs["__user_id"] = user_id
+        task = self.celery.send_task(import_path,args=args,kwargs=kwargs)
         return task
     
     def heavy_task(self,func):
@@ -174,6 +177,56 @@ class SingletonFlask:
             return self.celery.task(bind=True)(func)
         else:
             return func
+
+    def context(self, func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            with self.app.app_context():
+                return func(*args, **kwargs)
+        return wrapper
+        
+    def alert(self, event="progress"):
+        def dec(func):
+            @functools.wraps(func)
+            def wrapper(*args, **kwargs):
+                task = celery.current_task
+                user_id = kwargs.pop("__user_id","")
+                room = f"{user_id}-redis"
+                try:
+                    meta = {"message":"start","status":"RUNNING","id":task.request.id}
+                    task.update_state(state="STARTED",meta=meta)
+                    self.socketio.emit(event, meta, to=room)
+
+                    result = func(*args, **kwargs)
+                    meta = {"message":"end","status":"RUNNING","id":task.request.id}
+                    task.update_state(state="SUCCESS",meta=meta)
+                    self.socketio.emit(event, meta, to=room)
+
+                except Exception as e:
+                    result = str(e)
+                    meta = {"error":str(e),"status":"END","id":task.request.id}
+                    task.update_state(state="FAILURE",meta=meta)
+                    self.socketio.emit(event, meta, to=room)
+
+                meta =  {"result":result,"status":"RESULT","id":task.request.id}
+                self.socketio.emit(event, meta, to=room)
+                return result
+            return wrapper
+        return dec
+
+    def dynamic_task(self, import_path:str, *args, **kwargs):
+        import_elm  = import_path.split(".")
+        module_name = ".".join(import_elm[:-1])
+        func_name   = import_elm[-1]
+        module = importlib.import_module(module_name)
+        func = getattr(module, func_name)
+        try:
+            # TODO: 必要な引数だけを渡すにはどうすればいいか
+            result = {"result":func(*args, **kwargs),"error":False}
+        except Exception as e:
+            print(e)
+            result = {"result":str(e),"error":True}
+        return result
 
 if __name__ == "__main__":
     print("redis_error:", redis_error)

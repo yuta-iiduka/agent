@@ -3,6 +3,7 @@ const head = document.querySelector(".head");
 const body = document.querySelector(".body");
 const foot = document.querySelector(".foot");
 const endpoints = document.querySelector("meta[name=endpoints]").dataset;
+const wsevents  = document.querySelector("meta[name=wsevents]").dataset;
 const flash = document.querySelector(".flash");
 
 // ハンバーガーメニューの初期化
@@ -61,6 +62,10 @@ function url_for(endpoint,option={}){
  */
 function a(url){
     window.location.href = `${window.location.protocol}//${window.location.host}${url}`;
+}
+
+function ws_url_for(func){
+    return wsevents[func];
 }
 
 /**

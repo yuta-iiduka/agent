@@ -27,6 +27,12 @@ def index():
 
     return render_template("memo/index.html",data=data,keywords=keywords)
 
+@bp.route("/view/<id>",methods=["GET"])
+@login_required
+def view(id):
+    memo = Memo.query.filter_by(id=id).first()
+    return render_template("memo/view.html",data=memo)
+
 @bp.route("/create",methods=["GET"])
 @login_required
 def create():

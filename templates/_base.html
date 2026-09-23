@@ -15,6 +15,11 @@
 				data-{{endpoint}}="{{url}}"
 			{% endfor %}
 		/>
+		<meta name="wsevents"
+			{% for endpoint, func in wsevents.items() %}
+				data-{{func.__name__}}="{{endpoint}}"
+			{% endfor %}
+		/>
 
 		<title>METAPHEL:{% block title %}{% endblock %}</title>
 		

@@ -25,7 +25,7 @@ def pick(folder_path,file_name):
     ddd: 辞書データ拡張クラス
 """
 # 標準ライブラリのインポート
-import sys, os, platform, json, time, datetime, multiprocessing, subprocess, threading, types, functools, inspect, urllib, uuid
+import sys, os, platform, json, time, datetime, multiprocessing, subprocess, threading, types, functools, inspect, urllib, uuid, argparse
 # 外部ライブラリ
 # import
 # 自製ライブラリ
@@ -787,6 +787,173 @@ class TaskLinux(Task):
 
     def wait(self):
         pass
+
+class SysArgs():
+    """ コマンドライン引数の解析クラス
+    ### Outline
+    [デフォルトのオプション]
+    -h, --help : ヘルプの表示
+
+    ### Example コマンドラインからの取得
+    ``` 
+        # python -m your_module.py arg1 --version 10 
+        sysargs = SysArgs("SAMPLE")
+        sysargs.add_argument("mode", help="mode")
+        sysargs.add_option("-v", "--version", type=int, default=None, help="version")
+        result = sysargs.parse()
+        print(result.version)
+        print(result.mode)
+    ```
+    """
+
+    def __init__(self, description="コマンドラインオプションを受け取ります。"):
+        self.parser = argparse.ArgumentParser(description=description)
+        self.result = None
+
+    def add_option(self, option_keyword, option_name="", type=str, default=None, help=""):
+        self.parser.add_argument(option_keyword, option_name, type=type, default=default, help=help)
+
+    def add_argument(self, name, type=str, default=None, help=""):
+        self.parser.add_argument(name, type=type, default=default, help=help)
+            
+    def parse(self):
+        self.result = self.parser.parse_args()
+        return self.result    
+
+
+class EnvArgs():
+    def __init__(self, prefix=""):
+        self.prefix = prefix
+        self.org = os.environ
+
+    def lower(self):
+        return { k.lower(): v for k, v in self.org.copy().items() }
+
+    def higher(self):
+        return { k.upper(): v for k, v in self.org.copy().items() }
+
+    def get(self, name:str="", default=None):
+        if name == "":
+            raise Exception("検索キーワードがありません。")
+        return self.data.get(f"{self.prefix.lower()}{name.lower()}", default)
+
+    def set(self, name:str="", value=None):
+        if name == "" or value is None:
+            raise Exception("設定パラメータが不適です。")
+        self.low[name] = value
+
+    @property
+    def data(self):
+        """ 関連する環境変数のみを抽出した辞書データ
+        """
+        return ddd({ k.lower(): v for k, v in self.org.copy().items() if k.lower().startswith(self.prefix.lower()) })
+
+    def all(self, targets:list):
+        return all( self.get(k) is not None for k in targets ) if targets else False
+
+class Tracer():
+    """ 関数進捗監視関数
+    viwer: 表示関数 (stdout:str)->{}
+    reporter : 報告関数 (progress:int)->{}
+    0,100で開始、終了を監視可能
+    そのほかの値は関数自体の進捗度合いとなる。早期returnの場合は正確な進捗度合いは計測できない。
+    """
+
+    def __init__(self, viewer=print, reporter=None):
+        self._viewer = viewer
+        self._reporter = reporter
+        self.visible = False
+        self.targets = {}
+
+    def reporter(self, func):
+        self._reporter = func
+
+    def viwer(self, func):
+        self._viewer = func
+    
+    def draw(self, *args, **kwargs):
+        if self.visible:
+            message = []
+            if args:
+                for arg in args:
+                    message.append(str(arg))
+            if kwargs:
+                for k, v in kwargs.items():
+                    message.append(f"{k}: {v}")
+            self._viewer(", ".join(message))
+
+    def report(self,data):
+        if self._reporter and callable(self._reporter):
+            self._reporter(data)
+        else:
+            print(f"{str(data)}%")
+
+    def progress(self, func_name, lineno=None):
+        if func_name in self.targets:
+            info = self.targets[func_name]
+            if lineno:
+                prog = (lineno - info["start"]) / info["size"]
+                self.report(int(prog * 100))
+                info["progress"] = int(prog * 100)
+            else:
+                self.report(0)
+                info["progress"] = 0
+
+    def finish(self,func_name):
+        info = self.targets[func_name]
+        self.report(100)
+        info["progress"] = 100
+
+    def line(self, frame, event, arg):
+        if event == "line":
+            code = frame.f_code
+            lineno = frame.f_lineno
+            func_name = code.co_name
+            locals_ = frame.f_locals.copy()
+            self.draw(f"[TRACE] {func_name}() 行 {lineno}: {locals_}")
+            self.progress(frame.f_code.co_name, lineno)
+        return self.line
+
+    def monitor(self, func):
+        # 監視対象として登録
+        self.append(func)
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            # 呼び出し元情報（wrapper が呼ばれたときの行番号とローカル）
+            cur = inspect.currentframe()
+            caller = cur.f_back
+            self.draw(f"[CALLER] 行 {caller.f_lineno}, locals: {caller.f_locals}")
+            self.progress(func.__name__)
+            # 関数内部を行レベルで監視
+            sys.settrace(self.line)
+            result = None
+            try:
+                result = func(*args, **kwargs)
+            finally:
+                sys.settrace(None)
+                self.finish(func.__name__)
+            return result
+        return wrapper
+
+    def count_lines_and_last(self, func):
+        source_lines, first_lineno = inspect.getsourcelines(func)
+        line_count = len(source_lines)                     # 行数
+        last_lineno = first_lineno + line_count - 1        # 最後の行番号
+        return line_count, last_lineno
+
+    def append(self,func):
+        if func.__name__ in self.targets:
+            raise Exception("この関数名はすでに使われています。")
+        
+        cnt, last = self.count_lines_and_last(func)
+        print("append",f"{func.__name__}")
+        self.targets[f"{func.__name__}"] = {
+            "function":func,
+            "size":cnt,
+            "start":func.__code__.co_firstlineno,
+            "end":last,
+            "progress": 0
+        }
 
 
 if __name__ == "__main__":

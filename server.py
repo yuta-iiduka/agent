@@ -21,7 +21,7 @@ from job.task import *
 from common.utils import *
 from common.logger import *
 from common.file import *
-from common.flask_wrapper import SingletonFlask
+from common.flask_wrapper import *
 
 settings = ddd(JsonData("etc/config/settings.json").data)
 constant = ddd(JsonData("etc/config/constant.json").data)
@@ -51,9 +51,10 @@ def load_user(user_id):
 
 @app.context_processor
 def inject_const():
-    return {"settings":settings,"constant":constant,"messages":messages, "endpoints":endpoints()}
+    return {"settings":settings,"constant":constant,"messages":messages, "endpoints":endpoints(), "wsevents":wsevents()}
 
 @socketio.event
+@login_required
 def connect():
     print(current_user.name, "connect websocket.")
     room = f"user-{current_user.id}"
@@ -63,7 +64,17 @@ def connect():
     # socketio.emit("message", {"message":f"connect:{current_user.id}:{current_user.email}"}, to=room)
     emit("message", {"message":f"connect:{current_user.id}:{current_user.email}"}, to=room)
 
-def create_app():
+def endpoints():
+    endpoint_dict = {}
+    for rule in app.url_map.iter_rules():
+        endpoint_dict[rule.endpoint] = rule.rule
+
+    return endpoint_dict
+
+def wsevents():
+    return socketio.server.handlers.get("/",{})
+
+def create_flask():
     global socketio, app, aps
 
     # 各機能を初期化
@@ -82,36 +93,56 @@ def create_app():
 
     # Socket Route
     print(socketio.server.handlers)
-    print(socketio)
 
     aps.init_app(app)
     aps.start()
 
     print(endpoints())
-
     return app
 
-def endpoints():
-    endpoint_dict = {}
-    for rule in app.url_map.iter_rules():
-        endpoint_dict[rule.endpoint] = rule.rule
+def create_celery():
+    db.init_app(app)
+    dd = DirData("src")
+    for m in dd.files.keys():
+        if ".py" in m and "__" not in m:
+            importlib.import_module(m.replace("/",".").replace(".py",""))
+    return sf.celery
 
-    return endpoint_dict
-
-def main():
+def run_flask():
     # PIDの書き出し
     pid = os.getpid()
-    pidf = FileData("etc/pid",first_read=False)
+    pidf = FileData("etc/flask.pid",first_read=False)
     pidf.data = str(pid)
     pidf.write()
     print("pid:", pid)
         
     # アプリケーションの初期化
-    app = create_app()
+    app = create_flask()
     t = sf.run(settings.app.host, settings.app.port)
     t.join()
 
+def run_celery():
+    # PIDの書き出し
+    pid = os.getpid()
+    pidf = FileData("etc/celery.pid",first_read=False)
+    pidf.data = str(pid)
+    pidf.write()
+    print("pid:", pid)
+        
+    # アプリケーションの初期化
+    app = create_celery()
+    app.Worker(loglevel="INFO",pool="solo").start()
 
 if __name__ == "__main__":
-    # create_app().run(host=settings.app.host,port=settings.app.port)
-    main()
+    import gevent
+    sysargs = SysArgs("起動オプション")
+    sysargs.add_argument("mode", help="mode")
+    result = sysargs.parse()
+    if result.mode == "celery":
+        gevent.spawn(run_celery)
+    elif result.mode == "flask":
+        gevent.spawn(run_flask)
+
+
+    while True:
+        gevent.sleep(1)
