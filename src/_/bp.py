@@ -6,7 +6,7 @@ bp = Blueprint(NAME, __name__, url_prefix=f"/{NAME}")
 
 t = Tracer()
 @t.reporter
-def tmp(data):
+def percent(data):
     print(f"{data}%")
 
 
