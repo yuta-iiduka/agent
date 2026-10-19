@@ -44,6 +44,7 @@ is_enable_gevent = False
 try:
     import gevent
     from gevent import  queue, lock, socket
+    from gevent.pool import Group
     is_enable_gevent = True
 except Exception as e:
     is_enable_gevent = False
@@ -69,6 +70,7 @@ FLOWINFO = 0
 SCOPEID = 0
 KEEP_TIME = 3600
 RECEIVE_SIZE = 65536
+MAX_FRAME_SIZE = MAX_PACKET_SIZE * 2 + 4096
 
 
 class AddressResolver:
@@ -1509,6 +1511,412 @@ class GeventConnection(BaseConnection):
     def remove_handler(self, func):
         return super().remove_handler(func)
 
+import json
+import socket
+import struct
+import gevent
+
+from gevent import lock
+from gevent import queue as gevent_queue
+
+
+# HEADER_FORMAT、MAX_PACKET_SIZE、INTERVAL_TIME などは
+# 既存の定数を利用してください。
+
+
+class TCPGConnection(GeventConnection):
+    """TCP 通信の共通処理"""
+
+    def __init__(self, host, port):
+        super().__init__(host, port)
+
+        # gevent と相性のよいキューを利用する
+        self.queue = gevent_queue.Queue()
+        self.send_lock = lock.RLock()
+
+        # addr -> socket
+        # クライアントでは接続先サーバーのソケットを登録する
+        self.connections = {}
+
+        self.receiver = None
+        self.worker = None
+
+    def _recv_exact(self, conn, size):
+        """指定されたバイト数を受信する。切断時は None。"""
+        buf = bytearray()
+
+        while len(buf) < size:
+            part = conn.recv(size - len(buf))
+
+            if not part:
+                return None
+
+            buf.extend(part)
+
+        return bytes(buf)
+
+    def _recv_frame(self, conn):
+        """TCP ストリームから長さヘッダー付きフレームを1つ受信する。"""
+        header_size = struct.calcsize(HEADER_FORMAT)
+
+        header = self._recv_exact(conn, header_size)
+        if header is None:
+            return None
+
+        size = struct.unpack(HEADER_FORMAT, header)[0]
+
+        # 不正なサイズによる過大なメモリ確保を防ぐ
+        if size > MAX_FRAME_SIZE:
+            raise ValueError(f"Frame too large: {size}")
+
+        body = self._recv_exact(conn, size)
+        if body is None:
+            raise ConnectionError("Connection closed during frame reception")
+
+        return json.loads(body.decode("utf-8"))
+
+    def _send_frame(self, conn, packet):
+        """辞書データを長さヘッダー付きフレームとして送信する。"""
+        frame = Packet(packet).encode()
+
+        # 同じソケットへのフレーム送信が混ざらないようにする
+        with self.send_lock:
+            conn.sendall(frame)
+
+    def _send_data(self, conn, data):
+        """元のデータをチャンクに分割し、順番に送信する。"""
+        raw = json.dumps(data, ensure_ascii=False).encode("utf-8")
+        _, chunks = Packet.split(raw)
+
+        for chunk in chunks:
+            self._send_frame(conn, chunk)
+
+        return True
+
+    def _receive_loop(self, conn, addr):
+        """1接続分の受信ループ。"""
+        try:
+            while self.status == "READY":
+                packet = self._recv_frame(conn)
+
+                if packet is None:
+                    break
+
+                if isinstance(packet, dict) and packet.get("type") == "chunk":
+                    assembled = self.assembler.add(packet)
+
+                    if assembled is not None:
+                        obj = json.loads(assembled.decode("utf-8"))
+                        gevent.spawn(self._invoke, obj, addr)
+
+                else:
+                    # 分割形式以外のフレームを直接受け取った場合
+                    gevent.spawn(self._invoke, packet, addr)
+
+        except (OSError, ConnectionError, ValueError) as e:
+            self.debug("TCP receive error %s: %s", addr, e)
+
+        except Exception as e:
+            self.debug("TCP receiver exception %s: %s", addr, e)
+
+        finally:
+            self._disconnect(conn, addr)
+
+    def _disconnect(self, conn, addr):
+        """接続を安全に解放する。"""
+        if self.connections.get(addr) is conn:
+            self.connections.pop(addr, None)
+
+        self.partners.discard(addr)
+
+        try:
+            conn.close()
+        except OSError:
+            pass
+
+    def sendto(self, data, addr=None, wait=True):
+        """指定した接続へ送信する。TCPでは wait は互換用引数。"""
+        if wait:
+            self.wait()
+
+        if self.closing or self.status != "READY":
+            return False
+
+        conn = self.connections.get(addr)
+        if conn is None:
+            return False
+
+        try:
+            return self._send_data(conn, data)
+        except (OSError, ConnectionError, ValueError) as e:
+            self.debug("TCP send error %s: %s", addr, e)
+            self._disconnect(conn, addr)
+            return False
+
+    def enqueue(self, data, addr=None):
+        """送信要求をキューに追加し、タスク UUID を返す。"""
+        try:
+            if self.closing or self.status != "READY":
+                return None
+
+            # 呼び出し元の辞書を直接変更しない
+            payload = dict(data)
+
+            task_id = self.taskmanager.append()
+            payload["_uuid"] = task_id
+            payload["echo"] = False
+
+            self.queue.put_nowait({
+                "data": payload,
+                "addr": addr,
+                "uuid": task_id,
+                "created": __import__("time").time(),
+            })
+
+            return task_id
+
+        except Exception as e:
+            self.debug("TCP enqueue error: %s", e)
+            return None
+
+    def _worker(self):
+        """キューに積まれた送信要求を順番に処理する。"""
+        while self.status == "READY":
+            try:
+                item = self.queue.get()
+            except gevent.GreenletExit:
+                break
+
+            task_id = item["uuid"]
+
+            try:
+                ok = self.sendto(
+                    item["data"],
+                    item["addr"],
+                    wait=False,
+                )
+                self.taskmanager.status(task_id, bool(ok))
+
+            except Exception as e:
+                self.debug("TCP queue worker error: %s", e)
+                self.taskmanager.status(task_id, False)
+
+            finally:
+                gevent.sleep(INTERVAL_TIME)
+
+    def _start_worker(self):
+        if self.worker is None or self.worker.dead:
+            self.worker = gevent.spawn(self._worker)
+
+    def _stop_common(self):
+        """共通の送信処理を停止する。"""
+        self.closing = True
+
+        if self.worker is not None:
+            self.worker.kill()
+            self.worker = None
+
+        for addr, conn in list(self.connections.items()):
+            self._disconnect(conn, addr)
+
+        self.status = "CLOSED"
+
+class TCPGServer(TCPGConnection):
+
+    def __init__(self, host="0.0.0.0", port=9999):
+        super().__init__(host, port)
+        self.receiver = None
+        self.receivers = set()
+
+    def open(self, fileno=None):
+        self.status = "OPENING"
+        self.closing = False
+
+        try:
+            if fileno is not None:
+                self.transport = self.reuse(fileno)
+            else:
+                self.transport = socket.socket(
+                    self.family, socket.SOCK_STREAM
+                )
+                self.transport.setsockopt(
+                    socket.SOL_SOCKET,
+                    socket.SO_REUSEADDR,
+                    1,
+                )
+                self.transport.bind((self.host, self.port))
+                self.transport.listen()
+
+            self.fileno = self.transport.fileno()
+            self.status = "READY"
+
+            self.receiver = gevent.spawn(self._accept_loop)
+            self._start_worker()
+
+        except Exception:
+            self.status = "CLOSED"
+            if self.transport is not None:
+                self.transport.close()
+                self.transport = None
+            raise
+
+    def _accept_loop(self):
+        while self.status == "READY":
+            try:
+                conn, addr = self.transport.accept()
+                self.connections[addr] = conn
+                self.partners.add(addr)
+
+                greenlet = gevent.spawn(
+                    self._receive_loop, conn, addr
+                )
+                self.receivers.add(greenlet)
+                greenlet.link(
+                    lambda g: self.receivers.discard(g)
+                )
+
+            except OSError as e:
+                if self.status == "READY":
+                    self.debug("TCP accept error: %s", e)
+                break
+
+    def send(self, data, wait=True):
+        """接続中の全クライアントへ送信する。"""
+        return self.sendto(data, None, wait)
+
+    def sendto(self, data, addr=None, wait=True):
+        if addr is not None:
+            return super().sendto(data, addr, wait)
+
+        self.wait()
+
+        if self.closing or self.status != "READY":
+            return False
+
+        targets = list(self.connections.items())
+        if not targets:
+            return False
+
+        result = True
+
+        for target_addr, conn in targets:
+            try:
+                if self.connections.get(target_addr) is not conn:
+                    continue
+
+                if not self._send_data(conn, data):
+                    result = False
+
+            except (OSError, ConnectionError, ValueError) as e:
+                self.debug(
+                    "TCP broadcast error %s: %s",
+                    target_addr, e
+                )
+                self._disconnect(conn, target_addr)
+                result = False
+
+        return result
+
+    def close(self):
+        self.closing = True
+        self.status = "CLOSED"
+
+        if self.receiver is not None:
+            self.receiver.kill()
+            self.receiver = None
+
+        for greenlet in list(self.receivers):
+            greenlet.kill()
+        self.receivers.clear()
+
+        if self.worker is not None:
+            self.worker.kill()
+            self.worker = None
+
+        for addr, conn in list(self.connections.items()):
+            self._disconnect(conn, addr)
+
+        if self.transport is not None:
+            self.transport.close()
+            self.transport = None
+
+        self.fileno = None
+
+class TCPGClient(TCPGConnection):
+
+    def __init__(self, host="127.0.0.1", port=9999):
+        super().__init__(host, port)
+        self.remote_addr = None
+
+    def open(self, fileno=None):
+        self.status = "OPENING"
+        self.closing = False
+
+        try:
+            if fileno is not None:
+                self.transport = self.reuse(fileno)
+            else:
+                self.transport = socket.socket(
+                    self.family, socket.SOCK_STREAM
+                )
+                self.transport.connect((self.host, self.port))
+
+            self.fileno = self.transport.fileno()
+            self.remote_addr = self.transport.getpeername()
+
+            self.connections[self.remote_addr] = self.transport
+            self.partners.add(self.remote_addr)
+
+            self.status = "READY"
+
+            self.receiver = gevent.spawn(
+                self._receive_loop,
+                self.transport,
+                self.remote_addr,
+            )
+
+            self._start_worker()
+
+        except Exception:
+            self.status = "CLOSED"
+
+            if self.transport is not None:
+                self.transport.close()
+                self.transport = None
+
+            raise
+
+    def send(self, data, wait=True):
+        return self.sendto(data, self.remote_addr, wait)
+
+    def sendto(self, data, addr=None, wait=True):
+        # TCPクライアントは接続済みソケットを使用する
+        if addr is not None and addr != self.remote_addr:
+            return False
+
+        return super().sendto(data, self.remote_addr, wait)
+
+    def close(self):
+        self.closing = True
+        self.status = "CLOSED"
+
+        if self.receiver is not None:
+            self.receiver.kill()
+            self.receiver = None
+
+        if self.worker is not None:
+            self.worker.kill()
+            self.worker = None
+
+        for addr, conn in list(self.connections.items()):
+            self._disconnect(conn, addr)
+
+        self.connections.clear()
+        self.partners.clear()
+
+        self.transport = None
+        self.remote_addr = None
+        self.fileno = None
 
 class UDPGServer(GeventConnection):
     def __init__(self, host=DUAL_STUCK_HOST, port=9999):
