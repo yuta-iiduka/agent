@@ -1,0 +1,1080 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Class Scheduler</title>
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+  margin: 20px;
+  font-family: system-ui, sans-serif;
+  color: #263244;
+  background: #f5f7fa;
+}
+
+.scheduler {
+  --label-width: 180px;
+  --minute-width: 3px;
+  --hour-width: 180px;
+  --row-height: 200px;
+  --lane-height: 23px;
+
+  display: grid;
+  grid-template-columns: var(--label-width) minmax(0, 1fr);
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  overflow: hidden;
+  background: white;
+}
+
+.corner {
+  padding: 12px;
+  font-weight: 600;
+  background: #eaf0f7;
+  border-bottom: 1px solid #cbd5e1;
+  display: flex;
+  align-items: center;
+}
+
+.header-viewport,
+.timeline-viewport {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+.header-viewport {
+  border-bottom: 1px solid #cbd5e1;
+  background: #eaf0f7;
+}
+
+.header-content {
+  position: relative;
+  height: 43px;
+}
+
+.hour-label {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  padding: 12px 0 0 6px;
+  border-left: 1px solid #94a3b8;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.task-labels {
+  background: white;
+}
+
+.task-label {
+  height: var(--row-height);
+  padding: 14px 10px;
+  border-bottom: 1px solid #cbd5e1;
+  font-weight: 600;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.task-label small {
+  display: block;
+  margin-top: 6px;
+  color: #64748b;
+  font-weight: 400;
+  font-size: 11px;
+}
+
+.timeline-content {
+  position: relative;
+}
+
+.task-row {
+  position: relative;
+  height: var(--row-height);
+  border-bottom: 1px solid #cbd5e1;
+  background-color: white;
+
+  background-image: repeating-linear-gradient(
+    to right,
+    transparent 0,
+    transparent calc(var(--hour-width) - 1px),
+    #cbd5e1 calc(var(--hour-width) - 1px),
+    #cbd5e1 var(--hour-width)
+  );
+}
+
+.subtask {
+  position: absolute;
+  height: 18px;
+  padding: 1px 5px;
+  border: 1px solid rgba(15, 23, 42, .18);
+  border-radius: 4px;
+  color: white;
+  font-size: 11px;
+  line-height: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.subtask:hover {
+  z-index: 1000 !important;
+  filter: brightness(.92);
+  outline: 2px solid #334155;
+}
+
+.current-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #ef4444;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.current-line::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -5px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ef4444;
+}
+
+.current-label {
+  position: absolute;
+  top: 8px;
+  left: 5px;
+  padding: 3px 6px;
+  border-radius: 3px;
+  color: white;
+  background: #ef4444;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.footer {
+  margin-top: 12px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+@media (max-width: 600px) {
+  .scheduler { --label-width: 120px; }
+  body { margin: 8px; }
+}
+</style>
+</head>
+
+<body>
+
+<h2>スケジューラ</h2>
+<p>クラス管理 / 1分単位 / 最大8段 / 重なり区間の自動調整</p>
+
+<div id="scheduler"></div>
+<div id="periodInfo" class="footer"></div>
+
+<script>
+"use strict";
+
+// =====================================================
+// SchedulerSubtask
+// 小タスク1件のデータを管理する
+// =====================================================
+
+class SchedulerSubtask {
+  constructor({
+    id = null,
+    name,
+    start,
+    end,
+    color = null,
+    data = null
+  }) {
+    if (!name) {
+      throw new Error("小タスク名は必須です");
+    }
+
+    this.id = id ?? crypto.randomUUID();
+    this.name = name;
+    this.start = new Date(start);
+    this.end = new Date(end);
+    this.color = color;
+    this.data = data;
+
+    this.validate();
+  }
+
+  validate() {
+    if (
+      Number.isNaN(this.start.getTime()) ||
+      Number.isNaN(this.end.getTime())
+    ) {
+      throw new Error("開始日時・終了日時が不正です");
+    }
+
+    if (this.end <= this.start) {
+      throw new Error("終了日時は開始日時より後にしてください");
+    }
+  }
+
+  update(values) {
+    if (values.name !== undefined) {
+      this.name = values.name;
+    }
+
+    if (values.start !== undefined) {
+      this.start = new Date(values.start);
+    }
+
+    if (values.end !== undefined) {
+      this.end = new Date(values.end);
+    }
+
+    if (values.color !== undefined) {
+      this.color = values.color;
+    }
+
+    if (values.data !== undefined) {
+      this.data = values.data;
+    }
+
+    this.validate();
+    return this;
+  }
+}
+
+
+// =====================================================
+// SchedulerTask
+// タスク名と小タスク一覧を管理する
+// =====================================================
+
+class SchedulerTask {
+  constructor({
+    id = null,
+    name
+  }) {
+    if (!name) {
+      throw new Error("タスク名は必須です");
+    }
+
+    this.id = id ?? crypto.randomUUID();
+    this.name = name;
+    this.subtasks = [];
+    this.scheduler = null;
+  }
+
+  // 小タスク追加
+  addSubtask(options) {
+    const subtask = options instanceof SchedulerSubtask
+      ? options
+      : new SchedulerSubtask(options);
+
+    if (this.subtasks.some(item => item.id === subtask.id)) {
+      throw new Error("同じ小タスクIDが存在します");
+    }
+
+    this.subtasks.push(subtask);
+    this.scheduler?.render();
+
+    return subtask;
+  }
+
+  // 小タスク取得
+  getSubtask(id) {
+    return this.subtasks.find(item => item.id === id) ?? null;
+  }
+
+  // 小タスク削除
+  removeSubtask(id) {
+    const index = this.subtasks.findIndex(
+      item => item.id === id
+    );
+
+    if (index === -1) return false;
+
+    this.subtasks.splice(index, 1);
+    this.scheduler?.render();
+
+    return true;
+  }
+
+  // 小タスク更新
+  updateSubtask(id, values) {
+    const subtask = this.getSubtask(id);
+
+    if (!subtask) return null;
+
+    subtask.update(values);
+    this.scheduler?.render();
+
+    return subtask;
+  }
+
+  // タスク名変更
+  setName(name) {
+    if (!name) {
+      throw new Error("タスク名は必須です");
+    }
+
+    this.name = name;
+    this.scheduler?.render();
+
+    return this;
+  }
+}
+
+
+// =====================================================
+// Scheduler
+// 時間軸・描画・現在時刻・全タスクを管理する
+// =====================================================
+
+class Scheduler {
+  constructor({
+    container,
+    start,
+    end,
+    minuteWidth = 3,
+    maxLanes = 8,
+    laneHeight = 23,
+    rowPadding = 16,
+    colors = [
+      "#2563eb",
+      "#0d9488",
+      "#9333ea",
+      "#ea580c",
+      "#475569",
+      "#16a34a",
+      "#db2777",
+      "#0891b2"
+    ]
+  }) {
+    this.container = typeof container === "string"
+      ? document.querySelector(container)
+      : container;
+
+    if (!this.container) {
+      throw new Error("描画先の要素が見つかりません");
+    }
+
+    this.start = new Date(start);
+    this.end = new Date(end);
+
+    if (
+      Number.isNaN(this.start.getTime()) ||
+      Number.isNaN(this.end.getTime()) ||
+      this.end <= this.start
+    ) {
+      throw new Error("表示期間が不正です");
+    }
+
+    this.minuteWidth = minuteWidth;
+    this.maxLanes = maxLanes;
+    this.laneHeight = laneHeight;
+    this.rowPadding = rowPadding;
+    this.colors = colors;
+
+    this.tasks = [];
+    this.timerId = null;
+    this.syncing = false;
+
+    this._buildDOM();
+    this.render();
+    this._updateCurrentTime();
+
+    this.timerId = setInterval(
+      () => this._updateCurrentTime(),
+      1000
+    );
+  }
+
+  // ---------------------------------------------------
+  // DOM初期化
+  // ---------------------------------------------------
+
+  _buildDOM() {
+    this.container.innerHTML = "";
+    this.container.classList.add("scheduler");
+
+    this.corner = document.createElement("div");
+    this.corner.className = "corner";
+    this.corner.textContent = "タスク名";
+
+    this.headerViewport = document.createElement("div");
+    this.headerViewport.className = "header-viewport";
+
+    this.headerContent = document.createElement("div");
+    this.headerContent.className = "header-content";
+    this.headerViewport.appendChild(this.headerContent);
+
+    this.taskLabels = document.createElement("div");
+    this.taskLabels.className = "task-labels";
+
+    this.timelineViewport = document.createElement("div");
+    this.timelineViewport.className = "timeline-viewport";
+
+    this.timelineContent = document.createElement("div");
+    this.timelineContent.className = "timeline-content";
+    this.timelineViewport.appendChild(this.timelineContent);
+
+    this.container.append(
+      this.corner,
+      this.headerViewport,
+      this.taskLabels,
+      this.timelineViewport
+    );
+
+    this.periodInfo = document.getElementById("periodInfo");
+
+    this.container.style.setProperty(
+      "--minute-width",
+      `${this.minuteWidth}px`
+    );
+
+    this.container.style.setProperty(
+      "--hour-width",
+      `${this.minuteWidth * 60}px`
+    );
+
+    this.container.style.setProperty(
+      "--lane-height",
+      `${this.laneHeight}px`
+    );
+
+    this._bindScroll();
+  }
+
+  _bindScroll() {
+    this.timelineViewport.addEventListener("scroll", () => {
+      if (this.syncing) return;
+
+      this.syncing = true;
+      this.headerViewport.scrollLeft =
+        this.timelineViewport.scrollLeft;
+      this.syncing = false;
+    });
+
+    this.headerViewport.addEventListener("scroll", () => {
+      if (this.syncing) return;
+
+      this.syncing = true;
+      this.timelineViewport.scrollLeft =
+        this.headerViewport.scrollLeft;
+      this.syncing = false;
+    });
+  }
+
+  // ---------------------------------------------------
+  // タスク操作
+  // ---------------------------------------------------
+
+  addTask(nameOrOptions) {
+    const task = nameOrOptions instanceof SchedulerTask
+      ? nameOrOptions
+      : new SchedulerTask(
+          typeof nameOrOptions === "string"
+            ? { name: nameOrOptions }
+            : nameOrOptions
+        );
+
+    if (this.tasks.some(item => item.id === task.id)) {
+      throw new Error("同じタスクIDが存在します");
+    }
+
+    task.scheduler = this;
+    this.tasks.push(task);
+    this.render();
+
+    return task;
+  }
+
+  getTask(id) {
+    return this.tasks.find(item => item.id === id) ?? null;
+  }
+
+  removeTask(id) {
+    const index = this.tasks.findIndex(
+      item => item.id === id
+    );
+
+    if (index === -1) return false;
+
+    this.tasks[index].scheduler = null;
+    this.tasks.splice(index, 1);
+    this.render();
+
+    return true;
+  }
+
+  // 表示期間の変更
+  setRange(start, end) {
+    const newStart = new Date(start);
+    const newEnd = new Date(end);
+
+    if (
+      Number.isNaN(newStart.getTime()) ||
+      Number.isNaN(newEnd.getTime()) ||
+      newEnd <= newStart
+    ) {
+      throw new Error("表示期間が不正です");
+    }
+
+    this.start = newStart;
+    this.end = newEnd;
+
+    this.render();
+
+    return this;
+  }
+
+  // ---------------------------------------------------
+  // 時間変換
+  // ---------------------------------------------------
+
+  get totalMinutes() {
+    return (this.end - this.start) / 60000;
+  }
+
+  get contentWidth() {
+    return this.totalMinutes * this.minuteWidth;
+  }
+
+  toMinutes(date) {
+    return (new Date(date) - this.start) / 60000;
+  }
+
+  formatDate(date) {
+    return new Date(date).toLocaleString("ja-JP", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false
+    });
+  }
+
+  formatTime(date) {
+    const d = new Date(date);
+
+    return (
+      `${String(d.getHours()).padStart(2, "0")}:` +
+      `${String(d.getMinutes()).padStart(2, "0")}`
+    );
+  }
+
+  // ---------------------------------------------------
+  // 時間軸ヘッダー
+  // ---------------------------------------------------
+
+  _renderHeader() {
+    this.headerContent.innerHTML = "";
+    this.headerContent.style.width = `${this.contentWidth}px`;
+
+    const firstHour = new Date(this.start);
+    firstHour.setMinutes(0, 0, 0);
+
+    if (firstHour < this.start) {
+      firstHour.setHours(firstHour.getHours() + 1);
+    }
+
+    // 開始時刻が00分でない場合も、最初の正時から表示
+    for (
+      let time = new Date(firstHour);
+      time <= this.end;
+      time.setHours(time.getHours() + 1)
+    ) {
+      const minute = this.toMinutes(time);
+
+      const label = document.createElement("div");
+      label.className = "hour-label";
+      label.style.left = `${minute * this.minuteWidth}px`;
+      label.textContent = this.formatTime(time);
+
+      this.headerContent.appendChild(label);
+    }
+  }
+
+  // ---------------------------------------------------
+  // 重なり区間の計算
+  //
+  // 開始時刻が後ろの予定を優先する。
+  // 8件を超えた区間では、優先度の低い予定を隠す。
+  // 重なりが解消した区間は再び表示する。
+  // ---------------------------------------------------
+
+  _buildVisibleSegments(subtasks) {
+    const sorted = subtasks
+      .map((item, index) => ({
+        item,
+        originalIndex: index
+      }))
+      .sort((a, b) =>
+        b.item.start - a.item.start ||
+        b.item.end - a.item.end ||
+        a.originalIndex - b.originalIndex
+      );
+
+    const rendered = [];
+
+    for (const entry of sorted) {
+      const item = entry.item;
+
+      const visibleStart = Math.max(
+        0,
+        this.toMinutes(item.start)
+      );
+
+      const visibleEnd = Math.min(
+        this.totalMinutes,
+        this.toMinutes(item.end)
+      );
+
+      const result = {
+        ...entry,
+        segments: []
+      };
+
+      if (visibleEnd <= visibleStart) {
+        rendered.push(result);
+        continue;
+      }
+
+      const boundaries = new Set([
+        visibleStart,
+        visibleEnd
+      ]);
+
+      // すでに優先配置したタスクの区間境界を収集
+      for (const previous of rendered) {
+        for (const segment of previous.segments) {
+          if (
+            segment.start < visibleEnd &&
+            segment.end > visibleStart
+          ) {
+            boundaries.add(
+              Math.max(visibleStart, segment.start)
+            );
+
+            boundaries.add(
+              Math.min(visibleEnd, segment.end)
+            );
+          }
+        }
+      }
+
+      const points = [...boundaries].sort((a, b) => a - b);
+
+      for (let i = 0; i < points.length - 1; i++) {
+        const from = points[i];
+        const to = points[i + 1];
+
+        if (to <= from) continue;
+
+        const mid = (from + to) / 2;
+
+        // この時点で表示されている上位予定
+        const active = [];
+
+        for (const previous of rendered) {
+          const segment = previous.segments.find(
+            s => s.start <= mid && s.end > mid
+          );
+
+          if (segment) {
+            active.push({
+              item: previous.item,
+              lane: segment.lane
+            });
+          }
+        }
+
+        // 最大段数に達している場合はこの区間を隠す
+        if (active.length >= this.maxLanes) {
+          continue;
+        }
+
+        const occupied = new Set(
+          active.map(entry => entry.lane)
+        );
+
+        let lane = 0;
+
+        while (
+          lane < this.maxLanes &&
+          occupied.has(lane)
+        ) {
+          lane++;
+        }
+
+        if (lane >= this.maxLanes) continue;
+
+        result.segments.push({
+          start: from,
+          end: to,
+          lane
+        });
+      }
+
+      rendered.push(result);
+    }
+
+    return rendered;
+  }
+
+  // ---------------------------------------------------
+  // ブロック描画
+  // ---------------------------------------------------
+
+  _drawBlock(row, item, segment, color) {
+    const block = document.createElement("div");
+    block.className = "subtask";
+
+    block.style.left =
+      `${segment.start * this.minuteWidth}px`;
+
+    block.style.width =
+      `${(segment.end - segment.start) * this.minuteWidth}px`;
+
+    block.style.top =
+      `${8 + segment.lane * this.laneHeight}px`;
+
+    block.style.background =
+      item.color || color;
+
+    block.textContent = item.name;
+
+    block.title =
+      `${item.name}\n` +
+      `${this.formatDate(item.start)} 〜 ` +
+      `${this.formatDate(item.end)}`;
+
+    // 同一タスクが分割されても、元の予定情報を保持
+    block.dataset.subtaskId = item.id;
+
+    // マウスホバー時はCSSで最前面に表示
+    row.appendChild(block);
+  }
+
+  // ---------------------------------------------------
+  // 全体描画
+  // ---------------------------------------------------
+
+  render() {
+    const scrollLeft = this.timelineViewport.scrollLeft;
+
+    this._renderHeader();
+
+    this.taskLabels.innerHTML = "";
+    this.timelineContent.innerHTML = "";
+
+    this.timelineContent.style.width =
+      `${this.contentWidth}px`;
+
+    const rowHeight =
+      this.maxLanes * this.laneHeight + this.rowPadding;
+
+    this.container.style.setProperty(
+      "--row-height",
+      `${rowHeight}px`
+    );
+
+    for (const task of this.tasks) {
+      // 左側のタスク名
+      const label = document.createElement("div");
+      label.className = "task-label";
+      label.textContent = task.name;
+
+      const detail = document.createElement("small");
+      detail.textContent =
+        `${task.subtasks.length} 件の小タスク`;
+
+      label.appendChild(detail);
+      this.taskLabels.appendChild(label);
+
+      // 右側の時間軸行
+      const row = document.createElement("div");
+      row.className = "task-row";
+
+      // 優先順位に応じた表示区間を計算
+      const rendered = this._buildVisibleSegments(
+        task.subtasks
+      );
+
+      for (const entry of rendered) {
+        const item = entry.item;
+        const segments = entry.segments;
+
+        const color = this.colors[
+          entry.originalIndex % this.colors.length
+        ];
+
+        for (const segment of segments) {
+          this._drawBlock(
+            row,
+            item,
+            segment,
+            color
+          );
+        }
+      }
+
+      this.timelineContent.appendChild(row);
+    }
+
+    // 現在時刻の線を最後に作り直す
+    this._createCurrentLine();
+
+    // 再描画後もスクロール位置を維持
+    this.headerViewport.scrollLeft = scrollLeft;
+    this.timelineViewport.scrollLeft = scrollLeft;
+
+    if (this.periodInfo) {
+      this.periodInfo.textContent =
+        `表示期間: ${this.formatDate(this.start)} 〜 ` +
+        `${this.formatDate(this.end)} / ` +
+        `1分あたり${this.minuteWidth}px / ` +
+        `最大${this.maxLanes}段`;
+    }
+
+    this._updateCurrentTime();
+
+    return this;
+  }
+
+  // ---------------------------------------------------
+  // 現在時刻
+  // ---------------------------------------------------
+
+  _createCurrentLine() {
+    this.currentLine = document.createElement("div");
+    this.currentLine.className = "current-line";
+
+    this.currentLabel = document.createElement("div");
+    this.currentLabel.className = "current-label";
+
+    this.currentLine.appendChild(this.currentLabel);
+    this.timelineContent.appendChild(this.currentLine);
+  }
+
+  _updateCurrentTime() {
+    if (!this.currentLine) return;
+
+    const now = new Date();
+
+    const minutes = this.toMinutes(now);
+
+    const visible =
+      now >= this.start && now <= this.end;
+
+    this.currentLine.style.display =
+      visible ? "block" : "none";
+
+    if (visible) {
+      this.currentLine.style.left =
+        `${minutes * this.minuteWidth}px`;
+
+      this.currentLabel.textContent =
+        this.formatTime(now);
+    }
+  }
+
+  // ---------------------------------------------------
+  // 破棄
+  // ---------------------------------------------------
+
+  destroy() {
+    if (this.timerId !== null) {
+      clearInterval(this.timerId);
+      this.timerId = null;
+    }
+
+    for (const task of this.tasks) {
+      task.scheduler = null;
+    }
+
+    this.tasks = [];
+    this.container.innerHTML = "";
+  }
+}
+
+
+// =====================================================
+// 利用例
+// ここから下はアプリ側のコード
+// =====================================================
+
+// 今日の08:00〜22:00
+const start = new Date();
+start.setHours(8, 0, 0, 0);
+
+const end = new Date(start);
+end.setHours(22, 0, 0, 0);
+
+// スケジューラ生成
+const scheduler = new Scheduler({
+  container: "#scheduler",
+  start,
+  end,
+  minuteWidth: 3,
+  maxLanes: 8
+});
+
+// タスク追加
+const development = scheduler.addTask("開発タスク");
+
+development.addSubtask({
+  name: "設計",
+  start: new Date(start.getTime() + 30 * 60000),
+  end: new Date(start.getTime() + 150 * 60000)
+});
+
+development.addSubtask({
+  name: "実装A",
+  start: new Date(start.getTime() + 100 * 60000),
+  end: new Date(start.getTime() + 500 * 60000)
+});
+
+development.addSubtask({
+  name: "実装B",
+  start: new Date(start.getTime() + 120 * 60000),
+  end: new Date(start.getTime() + 480 * 60000)
+});
+
+development.addSubtask({
+  name: "レビュー",
+  start: new Date(start.getTime() + 180 * 60000),
+  end: new Date(start.getTime() + 450 * 60000)
+});
+
+development.addSubtask({
+  name: "テスト",
+  start: new Date(start.getTime() + 250 * 60000),
+  end: new Date(start.getTime() + 600 * 60000)
+});
+
+development.addSubtask({
+  name: "修正",
+  start: new Date(start.getTime() + 300 * 60000),
+  end: new Date(start.getTime() + 540 * 60000)
+});
+
+development.addSubtask({
+  name: "追加作業",
+  start: new Date(start.getTime() + 320 * 60000),
+  end: new Date(start.getTime() + 570 * 60000)
+});
+
+development.addSubtask({
+  name: "確認",
+  start: new Date(start.getTime() + 330 * 60000),
+  end: new Date(start.getTime() + 520 * 60000)
+});
+
+development.addSubtask({
+  name: "予備作業",
+  start: new Date(start.getTime() + 340 * 60000),
+  end: new Date(start.getTime() + 500 * 60000)
+});
+
+development.addSubtask({
+  name: "移行準備",
+  start: new Date(start.getTime() + 350 * 60000),
+  end: new Date(start.getTime() + 460 * 60000)
+});
+
+// 2つ目のタスク
+const server = scheduler.addTask("サーバ運用");
+
+server.addSubtask({
+  name: "ログ確認",
+  start: new Date(start.getTime()),
+  end: new Date(start.getTime() + 45 * 60000)
+});
+
+server.addSubtask({
+  name: "バックアップ",
+  start: new Date(start.getTime() + 120 * 60000),
+  end: new Date(start.getTime() + 240 * 60000)
+});
+
+server.addSubtask({
+  name: "監視",
+  start: new Date(start.getTime() + 240 * 60000),
+  end: new Date(start.getTime() + 600 * 60000)
+});
+
+server.addSubtask({
+  name: "更新作業",
+  start: new Date(start.getTime() + 500 * 60000),
+  end: new Date(start.getTime() + 650 * 60000)
+});
+
+// 3つ目のタスク
+const documents = scheduler.addTask("資料作成");
+
+documents.addSubtask({
+  name: "資料A",
+  start: new Date(start.getTime() + 60 * 60000),
+  end: new Date(start.getTime() + 180 * 60000)
+});
+
+documents.addSubtask({
+  name: "資料B",
+  start: new Date(start.getTime() + 150 * 60000),
+  end: new Date(start.getTime() + 300 * 60000)
+});
+
+documents.addSubtask({
+  name: "最終確認",
+  start: new Date(start.getTime() + 400 * 60000),
+  end: new Date(start.getTime() + 480 * 60000)
+});
+
+// 利用例：タスクを追加する関数
+function addExampleTask() {
+  const task = scheduler.addTask("新規タスク");
+
+  task.addSubtask({
+    name: "新規作業",
+    start: new Date(start.getTime() + 700 * 60000),
+    end: new Date(start.getTime() + 780 * 60000)
+  });
+
+  return task;
+}
+
+// 利用例：予定を変更する
+// development.updateSubtask(subtaskId, {
+//   name: "設計（修正版）",
+//   start: new Date(start.getTime() + 60 * 60000),
+//   end: new Date(start.getTime() + 180 * 60000)
+// });
+
+// 利用例：タスクを削除する
+// scheduler.removeTask(taskId);
+
+// 利用例：小タスクを削除する
+// development.removeSubtask(subtaskId);
+
+// 利用例：表示期間を変更する
+// scheduler.setRange(newStart, newEnd);
+
+// 利用例：スケジューラを破棄する
+// scheduler.destroy();
+
+</script>
+</body>
+</html>
